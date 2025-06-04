@@ -1,0 +1,33 @@
+# Wyklucz katalog wirtualnego środowiska
+venv/
+
+# Pliki tymczasowe i cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.db
+*.sqlite3
+
+# Pliki systemowe
+.DS_Store
+Thumbs.db
+
+# Pliki konfiguracyjne IDE
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Pliki testowe i raporty
+coverage.*
+*.cover
+*.log
+*.json
+
+# Inne katalogi i pliki do wykluczenia
+.env
+.env.*
+*.bak
+*.tmp
