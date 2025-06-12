@@ -44,3 +44,9 @@ build/
 
 # Możesz usunąć poniższy wpis jeśli chcesz trzymać markdowny w repo
 # *.md
+
+# Ignoruj duże modele i pliki binarne
+saved_models/
+.venv/Lib/site-packages/llvmlite/binding/llvmlite.dll
+.venv/Lib/site-packages/clang/native/libclang.dll
+*.dll
