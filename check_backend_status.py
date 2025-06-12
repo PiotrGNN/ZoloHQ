@@ -53,7 +53,7 @@ def main() -> None:
     # Define API endpoints to check
     apis = [
         ("http://localhost:5000", "Main API Server"),
-        ("http://localhost:5001", "Enhanced API Server"),
+        ("http://localhost:4001", "Enhanced API Server"),
     ]
 
     all_running = True
@@ -81,8 +81,8 @@ def main() -> None:
         test_endpoints = [
             ("http://localhost:5000/api/portfolio", "Portfolio Data"),
             ("http://localhost:5000/api/trading/status", "Trading Status"),
-            ("http://localhost:5001/api/portfolio", "Enhanced Portfolio"),
-            ("http://localhost:5001/api/trading/statistics", "Trading Stats"),
+            ("http://localhost:4001/api/portfolio", "Enhanced Portfolio"),
+            ("http://localhost:4001/api/trading/statistics", "Trading Stats"),
         ]
 
         for url, name in test_endpoints:
@@ -102,7 +102,7 @@ def main() -> None:
         logger.info("   • Or: launch_all_dashboards.bat")
         logger.info("")
         logger.info("📱 Dashboard URLs:")
-        for i, port in enumerate(range(8501, 8510), 1):
+        for i, port in enumerate(range(4501, 4510), 1):
             logger.info(f"   • Dashboard {i}: http://localhost:{port}")
     else:
         logger.info(

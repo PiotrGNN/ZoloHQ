@@ -14,7 +14,7 @@ echo Waiting 5 seconds...
 timeout /t 5 /nobreak >nul
 
 echo.
-echo Starting Enhanced API Server (Port 5001)...  
+echo Starting Enhanced API Server (Port 4001)...  
 start "Enhanced API Server" /MIN cmd /k "cd /d C:\Users\piotr\Desktop\Zol0 && python enhanced_dashboard_api.py"
 
 echo.
@@ -24,7 +24,7 @@ timeout /t 10 /nobreak >nul
 echo.
 echo Testing connectivity...
 python -c "import requests; print('Main API:', requests.get('http://localhost:5000').status_code if requests.get('http://localhost:5000') else 'Not responding')" 2>nul
-python -c "import requests; print('Enhanced API:', requests.get('http://localhost:5001').status_code if requests.get('http://localhost:5001') else 'Not responding')" 2>nul
+python -c "import requests; print('Enhanced API:', requests.get('http://localhost:4001').status_code if requests.get('http://localhost:4001') else 'Not responding')" 2>nul
 
 echo.
 echo Backend services started!

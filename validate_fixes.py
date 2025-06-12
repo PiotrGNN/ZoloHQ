@@ -112,13 +112,13 @@ def test_api_connection():
     try:
         import requests
 
-        response = requests.get("http://localhost:5001/health", timeout=3)
+        response = requests.get("http://localhost:4001/health", timeout=3)
         if response.status_code == 200:
             print("  ✅ Enhanced Dashboard API is running")
 
             # Test portfolio endpoint
             portfolio_response = requests.get(
-                "http://localhost:5001/api/portfolio", timeout=3
+                "http://localhost:4001/api/portfolio", timeout=3
             )
             if portfolio_response.status_code == 200:
                 print("  ✅ Portfolio endpoint accessible")

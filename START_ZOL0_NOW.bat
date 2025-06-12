@@ -28,7 +28,7 @@ start "ZoL0 Main API" /MIN cmd /k "cd /d %~dp0ZoL0-master && echo Uruchamianie M
 
 timeout /t 5 >nul
 
-echo [1.2] Enhanced API Server (port 5001)...
+echo [1.2] Enhanced API Server (port 4001)...
 start "ZoL0 Enhanced API" /MIN cmd /k "cd /d %~dp0 && echo Uruchamianie Enhanced API Server... && python enhanced_dashboard_api.py"
 
 echo [1.3] Oczekiwanie 15 sekund na inicjalizację API...
@@ -38,33 +38,33 @@ echo.
 echo [KROK 2] Uruchamianie Dashboard Services...
 echo =============================================
 
-echo [2.1] Master Control Dashboard (8501)...
-start "ZoL0 Master Control" /MIN cmd /k "cd /d %~dp0 && streamlit run master_control_dashboard.py --server.port 8501 --server.headless true"
+echo [2.1] Master Control Dashboard (4501)...
+start "ZoL0 Master Control" /MIN cmd /k "cd /d %~dp0 && streamlit run master_control_dashboard.py --server.port 4501 --server.headless true"
 
 timeout /t 3 >nul
 
-echo [2.2] Unified Trading Dashboard (8502)...
-start "ZoL0 Unified Trading" /MIN cmd /k "cd /d %~dp0 && streamlit run unified_trading_dashboard.py --server.port 8502 --server.headless true"
+echo [2.2] Unified Trading Dashboard (4502)...
+start "ZoL0 Unified Trading" /MIN cmd /k "cd /d %~dp0 && streamlit run unified_trading_dashboard.py --server.port 4502 --server.headless true"
 
 timeout /t 3 >nul
 
-echo [2.3] Enhanced Bot Monitor (8503)...
-start "ZoL0 Bot Monitor" /MIN cmd /k "cd /d %~dp0 && streamlit run enhanced_bot_monitor.py --server.port 8503 --server.headless true"
+echo [2.3] Enhanced Bot Monitor (4503)...
+start "ZoL0 Bot Monitor" /MIN cmd /k "cd /d %~dp0 && streamlit run enhanced_bot_monitor.py --server.port 4503 --server.headless true"
 
 timeout /t 3 >nul
 
-echo [2.4] Trading Analytics (8504)...
-start "ZoL0 Analytics" /MIN cmd /k "cd /d %~dp0 && streamlit run advanced_trading_analytics.py --server.port 8504 --server.headless true"
+echo [2.4] Trading Analytics (4504)...
+start "ZoL0 Analytics" /MIN cmd /k "cd /d %~dp0 && streamlit run advanced_trading_analytics.py --server.port 4504 --server.headless true"
 
 timeout /t 3 >nul
 
-echo [2.5] ML Predictive Analytics (8505)...
-start "ZoL0 ML Analytics" /MIN cmd /k "cd /d %~dp0 && streamlit run ml_predictive_analytics.py --server.port 8505 --server.headless true"
+echo [2.5] ML Predictive Analytics (4505)...
+start "ZoL0 ML Analytics" /MIN cmd /k "cd /d %~dp0 && streamlit run ml_predictive_analytics.py --server.port 4505 --server.headless true"
 
 timeout /t 3 >nul
 
-echo [2.6] Enhanced Dashboard (8506)...
-start "ZoL0 Enhanced" /MIN cmd /k "cd /d %~dp0 && streamlit run enhanced_dashboard.py --server.port 8506 --server.headless true"
+echo [2.6] Enhanced Dashboard (4506)...
+start "ZoL0 Enhanced" /MIN cmd /k "cd /d %~dp0 && streamlit run enhanced_dashboard.py --server.port 4506 --server.headless true"
 
 echo.
 echo [KROK 3] Czekanie na inicjalizację...
@@ -83,20 +83,20 @@ echo.
 
 echo [SUKCES] Backend API Services:
 echo    • Main API Server:     http://localhost:5000
-echo    • Enhanced API Server: http://localhost:5001
+echo    • Enhanced API Server: http://localhost:4001
 echo.
 
 echo [SUKCES] Trading Dashboards:
-echo    • Master Control:      http://localhost:8501
-echo    • Unified Trading:     http://localhost:8502
-echo    • Bot Monitor:         http://localhost:8503
-echo    • Trading Analytics:   http://localhost:8504
-echo    • ML Analytics:        http://localhost:8505
-echo    • Enhanced Dashboard:  http://localhost:8506
+echo    • Master Control:      http://localhost:4501
+echo    • Unified Trading:     http://localhost:4502
+echo    • Bot Monitor:         http://localhost:4503
+echo    • Trading Analytics:   http://localhost:4504
+echo    • ML Analytics:        http://localhost:4505
+echo    • Enhanced Dashboard:  http://localhost:4506
 echo.
 
 echo [INFO] Otwieranie Master Control Dashboard...
-start "" "http://localhost:8501"
+start "" "http://localhost:4501"
 
 echo.
 echo ================================================================
@@ -112,10 +112,10 @@ echo ====================================
 
 REM Test connectivity
 curl -s http://localhost:5000 >nul 2>&1 && echo ✅ Main API - OK || echo ❌ Main API - ERROR
-curl -s http://localhost:5001 >nul 2>&1 && echo ✅ Enhanced API - OK || echo ❌ Enhanced API - ERROR  
-curl -s http://localhost:8501 >nul 2>&1 && echo ✅ Master Control - OK || echo ❌ Master Control - ERROR
-curl -s http://localhost:8502 >nul 2>&1 && echo ✅ Unified Trading - OK || echo ❌ Unified Trading - ERROR
-curl -s http://localhost:8503 >nul 2>&1 && echo ✅ Bot Monitor - OK || echo ❌ Bot Monitor - ERROR
+curl -s http://localhost:4001 >nul 2>&1 && echo ✅ Enhanced API - OK || echo ❌ Enhanced API - ERROR  
+curl -s http://localhost:4501 >nul 2>&1 && echo ✅ Master Control - OK || echo ❌ Master Control - ERROR
+curl -s http://localhost:4502 >nul 2>&1 && echo ✅ Unified Trading - OK || echo ❌ Unified Trading - ERROR
+curl -s http://localhost:4503 >nul 2>&1 && echo ✅ Bot Monitor - OK || echo ❌ Bot Monitor - ERROR
 
 echo.
 echo ================================================================

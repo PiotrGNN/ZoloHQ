@@ -163,7 +163,7 @@ class EnhancedBotMonitor:
                         "working_directory": ".",
                         "environment_vars": {},
                         "auto_restart": True,
-                        "health_check_url": "http://localhost:5001/health",
+                        "health_check_url": "http://localhost:4001/health",
                     },
                     {
                         "name": "unified_trading_dashboard",

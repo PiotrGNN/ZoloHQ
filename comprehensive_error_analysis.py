@@ -92,21 +92,21 @@ def main():
         ("http://localhost:5000/api/health", "Main API Health"),
         ("http://localhost:5000/api/portfolio", "Main API Portfolio"),
         ("http://localhost:5000/api/trading/status", "Main API Trading Status"),
-        ("http://localhost:5001/health", "Enhanced API Health"),
-        ("http://localhost:5001/api/portfolio", "Enhanced API Portfolio"),
-        ("http://localhost:5001/api/trading/statistics", "Enhanced API Trading Stats"),
-        ("http://localhost:5001/api/cache/init", "Enhanced API Cache Init"),
+        ("http://localhost:4001/health", "Enhanced API Health"),
+        ("http://localhost:4001/api/portfolio", "Enhanced API Portfolio"),
+        ("http://localhost:4001/api/trading/statistics", "Enhanced API Trading Stats"),
+        ("http://localhost:4001/api/cache/init", "Enhanced API Cache Init"),
     ]
 
     dashboard_urls = [
-        ("http://localhost:8501", "Master Control Dashboard"),
-        ("http://localhost:8502", "Unified Trading Dashboard"),
-        ("http://localhost:8503", "Bot Monitor Dashboard"),
-        ("http://localhost:8504", "Trading Analytics Dashboard"),
-        ("http://localhost:8505", "Notifications Dashboard"),
-        ("http://localhost:8506", "Portfolio Dashboard"),
-        ("http://localhost:8507", "ML Analytics Dashboard"),
-        ("http://localhost:8508", "Enhanced Dashboard"),
+        ("http://localhost:4501", "Master Control Dashboard"),
+        ("http://localhost:4502", "Unified Trading Dashboard"),
+        ("http://localhost:4503", "Bot Monitor Dashboard"),
+        ("http://localhost:4504", "Trading Analytics Dashboard"),
+        ("http://localhost:4505", "Notifications Dashboard"),
+        ("http://localhost:4506", "Portfolio Dashboard"),
+        ("http://localhost:4507", "ML Analytics Dashboard"),
+        ("http://localhost:4508", "Enhanced Dashboard"),
     ]
 
     # Analiza API Endpoints

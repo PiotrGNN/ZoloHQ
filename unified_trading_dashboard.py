@@ -201,7 +201,7 @@ class UnifiedDashboard:
         except ImportError:
             print("⚠️ python-dotenv not available")
 
-        self.api_base = "http://localhost:5001"
+        self.api_base = "http://localhost:4001"
         self.production_mode = (
             os.getenv("BYBIT_PRODUCTION_ENABLED", "").lower() == "true"
         )
