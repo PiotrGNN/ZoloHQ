@@ -39,7 +39,9 @@ build/
 .eggs/
 .hypothesis/
 .ipynb_checkpoints/
-.github/
+!.github/
+!.github/workflows/
+!.github/workflows/**
 *.pid
 
 # Możesz usunąć poniższy wpis jeśli chcesz trzymać markdowny w repo
