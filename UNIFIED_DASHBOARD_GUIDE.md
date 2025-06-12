@@ -151,7 +151,7 @@ Importuje funkcjonalności z:
 ## 📊 Metryki i Dane
 
 ### Źródła Danych
-1. **Enhanced Dashboard API** (Port 5001)
+1. **Enhanced Dashboard API** (Port 4001)
 2. **Production Data Manager** (Bybit API)
 3. **SQLite Database** (Lokalne dane)
 4. **Symulowane dane** (Tryb deweloperski)
@@ -225,7 +225,7 @@ echo $BYBIT_PRODUCTION_ENABLED
 python -c "
 import requests
 try:
-    r = requests.get('http://localhost:5001/api/bot_status', timeout=5)
+    r = requests.get('http://localhost:4001/api/bot_status', timeout=5)
     print('API Status:', r.status_code)
 except Exception as e:
     print('API Error:', e)
@@ -290,7 +290,7 @@ print(f"Dysk: {psutil.disk_usage('/').percent}%")
 
 ### Przydatne Linki
 - 🌐 **Dashboard:** http://localhost:8500
-- 📊 **API Status:** http://localhost:5001/api/status
+- 📊 **API Status:** http://localhost:4001/api/status
 - 📁 **Dokumentacja:** ./DASHBOARD_USER_GUIDE.md
 
 ---

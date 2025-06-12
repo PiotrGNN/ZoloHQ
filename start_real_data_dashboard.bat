@@ -8,12 +8,12 @@ echo Environment: PRODUCTION
 echo Data Source: Bybit Production API
 echo Authentication: VERIFIED
 echo.
-echo Dashboard will open at: http://localhost:8501
+echo Dashboard will open at: http://localhost:4501
 echo.
 echo Press Ctrl+C to stop
 echo ================================
 echo.
 
 cd /d "%~dp0"
-python -m streamlit run unified_trading_dashboard.py --server.port 8501
+python -m streamlit run unified_trading_dashboard.py --server.port 4501
 pause

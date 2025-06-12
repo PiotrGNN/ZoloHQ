@@ -84,7 +84,7 @@ class APIConfig:
     """API server configuration"""
 
     host: str = "0.0.0.0"
-    port: int = 5001
+    port: int = 4001
     workers: int = 4
     timeout: int = 30
     max_request_size: int = 16777216  # 16MB
@@ -352,7 +352,7 @@ User=zol0
 Group=zol0
 WorkingDirectory={Path.cwd()}
 Environment=PATH={Path.cwd()}/venv/bin
-ExecStart={Path.cwd()}/venv/bin/streamlit run unified_trading_dashboard.py --server.port 8501 --server.address 0.0.0.0
+ExecStart={Path.cwd()}/venv/bin/streamlit run unified_trading_dashboard.py --server.port 4501 --server.address 0.0.0.0
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -408,11 +408,11 @@ WantedBy=multi-user.target
         nginx_config = """
 # ZoL0 Trading System - Nginx Configuration
 upstream zol0_api {
-    server 127.0.0.1:5001;
+    server 127.0.0.1:4001;
 }
 
 upstream zol0_dashboard {
-    server 127.0.0.1:8501;
+    server 127.0.0.1:4501;
 }
 
 # API Server
@@ -795,7 +795,7 @@ echo "Backup completed: $TIMESTAMP"
         print(f"Configuration Directory: {self.config_dir}")
         print(f"Environment File: {self.env_file}")
         print(f"API Port: {self.api_config.port}")
-        print("Dashboard Port: 8501")
+        print("Dashboard Port: 4501")
         print(f"Trading Environment: {self.trading_config.environment}")
         print(f"Live Trading Enabled: {self.trading_config.enable_live_trading}")
 

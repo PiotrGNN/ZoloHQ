@@ -1717,4 +1717,4 @@ if __name__ == "__main__":
     get_production_data_manager()
 
     # Uruchom serwer
-    app.run(host="0.0.0.0", port=5001, debug=True)  # Inny port niż główne API
+    app.run(host="0.0.0.0", port=4001, debug=True)  # Zmieniony port

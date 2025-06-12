@@ -66,7 +66,7 @@ def main():
         {
             "name": "Enhanced API Server",
             "script": base_dir / "enhanced_dashboard_api.py",
-            "port": 5001,
+            "port": 4001,
         },
     ]
 
@@ -102,7 +102,7 @@ def main():
         print("🟢 Dashboards will now use REAL BYBIT DATA")
         print("\nNext steps:")
         print("1. Run: python launch_all_dashboards.py")
-        print("2. Open dashboards: http://localhost:8501 to 8509")
+        print("2. Open dashboards: http://localhost:4501 to 4509")
         print("\nPress Ctrl+C to stop all services")
 
         try:

@@ -54,9 +54,9 @@ def start_enhanced_api():
         import requests
 
         try:
-            response = requests.get("http://localhost:5001/health", timeout=5)
+            response = requests.get("http://localhost:4001/health", timeout=5)
             if response.status_code == 200:
-                print("✅ Enhanced Dashboard API uruchomiony (port 5001)")
+                print("✅ Enhanced Dashboard API uruchomiony (port 4001)")
                 return process
             else:
                 print("⚠️  API uruchomiony ale nie odpowiada poprawnie")

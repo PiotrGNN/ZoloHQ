@@ -6,15 +6,15 @@ Write-Host "=" * 60
 
 # Sprawdź czy wszystkie pliki istnieją
 $dashboards = @{
-    "Master Control Dashboard" = @{file="master_control_dashboard.py"; port=8501}
-    "Unified Trading Dashboard" = @{file="unified_trading_dashboard.py"; port=8502}
-    "Enhanced Bot Monitor" = @{file="enhanced_bot_monitor.py"; port=8503}
-    "Advanced Trading Analytics" = @{file="advanced_trading_analytics.py"; port=8504}
-    "Notification Dashboard" = @{file="notification_dashboard.py"; port=8505}
-    "Advanced Alert Management" = @{file="advanced_alert_management.py"; port=8506}
-    "Portfolio Optimization" = @{file="portfolio_optimization.py"; port=8507}
-    "ML Predictive Analytics" = @{file="ml_predictive_analytics.py"; port=8508}
-    "Enhanced Dashboard" = @{file="enhanced_dashboard.py"; port=8509}
+    "Master Control Dashboard" = @{file="master_control_dashboard.py"; port=4501}
+    "Unified Trading Dashboard" = @{file="unified_trading_dashboard.py"; port=4502}
+    "Enhanced Bot Monitor" = @{file="enhanced_bot_monitor.py"; port=4503}
+    "Advanced Trading Analytics" = @{file="advanced_trading_analytics.py"; port=4504}
+    "Notification Dashboard" = @{file="notification_dashboard.py"; port=4505}
+    "Advanced Alert Management" = @{file="advanced_alert_management.py"; port=4506}
+    "Portfolio Optimization" = @{file="portfolio_optimization.py"; port=4507}
+    "ML Predictive Analytics" = @{file="ml_predictive_analytics.py"; port=4508}
+    "Enhanced Dashboard" = @{file="enhanced_dashboard.py"; port=4509}
 }
 
 Write-Host "📋 SPRAWDZANIE DASHBOARDÓW:" -ForegroundColor Yellow

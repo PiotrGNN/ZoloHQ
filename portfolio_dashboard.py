@@ -71,7 +71,7 @@ class PortfolioDashboard:
     """Main Portfolio Dashboard Class"""
 
     def __init__(self):
-        self.api_base_url = "http://localhost:5001"
+        self.api_base_url = "http://localhost:4001"
         self.production_manager = None
         self.production_mode = (
             os.getenv("BYBIT_PRODUCTION_ENABLED", "").lower() == "true"

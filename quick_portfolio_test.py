@@ -8,7 +8,7 @@ import requests
 print("Testing Enhanced API Portfolio Endpoint...")
 
 try:
-    response = requests.get("http://localhost:5001/api/portfolio", timeout=30)
+    response = requests.get("http://localhost:4001/api/portfolio", timeout=30)
     print(f"Status: {response.status_code}")
 
     if response.status_code == 200:

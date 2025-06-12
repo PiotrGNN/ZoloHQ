@@ -41,7 +41,7 @@ try {
         Start-Sleep -Seconds 5
     }
     
-    Write-Host "[1.3] Starting Enhanced API Server on port 5001..." -ForegroundColor Cyan
+    Write-Host "[1.3] Starting Enhanced API Server on port 4001..." -ForegroundColor Cyan
     $EnhancedAPI = Start-Process -FilePath "cmd" -ArgumentList "/k", "cd /d `"$BaseDir`" && echo Starting Enhanced API Server... && python enhanced_dashboard_api.py" -WindowStyle Minimized -PassThru
     Write-Host "    ✅ Enhanced API Server started (PID: $($EnhancedAPI.Id))" -ForegroundColor Green
     
@@ -59,15 +59,15 @@ Write-Host "========================================" -ForegroundColor Yellow
 
 # Dashboard configurations (ensure all dashboards/ports match Python/BAT launchers)
 $Dashboards = @(
-    @{Name="Master Control Dashboard"; Script="master_control_dashboard.py"; Port=8501},
-    @{Name="Unified Trading Dashboard"; Script="unified_trading_dashboard.py"; Port=8502},
-    @{Name="Enhanced Bot Monitor"; Script="enhanced_bot_monitor.py"; Port=8503},
-    @{Name="Advanced Trading Analytics"; Script="advanced_trading_analytics.py"; Port=8504},
-    @{Name="Notification Dashboard"; Script="notification_dashboard.py"; Port=8505},
-    @{Name="Advanced Alert Management"; Script="advanced_alert_management.py"; Port=8506},
-    @{Name="Portfolio Optimization"; Script="portfolio_optimization.py"; Port=8507},
-    @{Name="ML Predictive Analytics"; Script="ml_predictive_analytics.py"; Port=8508},
-    @{Name="Enhanced Dashboard"; Script="enhanced_dashboard.py"; Port=8509}
+    @{Name="Master Control Dashboard"; Script="master_control_dashboard.py"; Port=4501},
+    @{Name="Unified Trading Dashboard"; Script="unified_trading_dashboard.py"; Port=4502},
+    @{Name="Enhanced Bot Monitor"; Script="enhanced_bot_monitor.py"; Port=4503},
+    @{Name="Advanced Trading Analytics"; Script="advanced_trading_analytics.py"; Port=4504},
+    @{Name="Notification Dashboard"; Script="notification_dashboard.py"; Port=4505},
+    @{Name="Advanced Alert Management"; Script="advanced_alert_management.py"; Port=4506},
+    @{Name="Portfolio Optimization"; Script="portfolio_optimization.py"; Port=4507},
+    @{Name="ML Predictive Analytics"; Script="ml_predictive_analytics.py"; Port=4508},
+    @{Name="Enhanced Dashboard"; Script="enhanced_dashboard.py"; Port=4509}
 )
 
 $DashboardProcesses = @()
@@ -110,7 +110,7 @@ Write-Host ""
 
 Write-Host "[SUCCESS] Backend API Services:" -ForegroundColor Green
 Write-Host "    • Main API Server:     http://localhost:5000" -ForegroundColor White
-Write-Host "    • Enhanced API Server: http://localhost:5001" -ForegroundColor White
+Write-Host "    • Enhanced API Server: http://localhost:4001" -ForegroundColor White
 Write-Host ""
 
 Write-Host "[SUCCESS] Trading Dashboards:" -ForegroundColor Green
@@ -121,9 +121,9 @@ Write-Host ""
 
 Write-Host "[INFO] Opening Master Control Dashboard..." -ForegroundColor Cyan
 try {
-    Start-Process "http://localhost:8501"
+    Start-Process "http://localhost:4501"
 } catch {
-    Write-Host "    ⚠️  Could not auto-open browser. Please manually open: http://localhost:8501" -ForegroundColor Yellow
+    Write-Host "    ⚠️  Could not auto-open browser. Please manually open: http://localhost:4501" -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -148,7 +148,7 @@ function Test-ServiceStatus {
     }
     
     try {
-        $EnhancedAPIResponse = Invoke-WebRequest -Uri "http://localhost:5001" -TimeoutSec 3 -ErrorAction SilentlyContinue
+        $EnhancedAPIResponse = Invoke-WebRequest -Uri "http://localhost:4001" -TimeoutSec 3 -ErrorAction SilentlyContinue
         if ($EnhancedAPIResponse.StatusCode -eq 200) {
             Write-Host "    ✅ Enhanced API Server - RESPONDING" -ForegroundColor Green
         }
@@ -175,8 +175,8 @@ Test-ServiceStatus
 Write-Host ""
 Write-Host "📋 Quick Commands:" -ForegroundColor Cyan
 Write-Host "    • Check status: Test-ServiceStatus" -ForegroundColor White
-Write-Host "    • Master Control: http://localhost:8501" -ForegroundColor White
-Write-Host "    • Unified Trading: http://localhost:8502" -ForegroundColor White
+Write-Host "    • Master Control: http://localhost:4501" -ForegroundColor White
+Write-Host "    • Unified Trading: http://localhost:4502" -ForegroundColor White
 Write-Host ""
 
 # Keep script running

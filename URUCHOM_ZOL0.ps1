@@ -29,7 +29,7 @@ try {
     
     Start-Sleep -Seconds 5
     
-    Write-Host "[1.2] Enhanced API Server (port 5001)..." -ForegroundColor Cyan
+    Write-Host "[1.2] Enhanced API Server (port 4001)..." -ForegroundColor Cyan
     Start-Process cmd -ArgumentList "/k", "cd /d C:\Users\piotr\Desktop\Zol0 && python enhanced_dashboard_api.py" -WindowStyle Minimized
     Write-Host "    ✅ Enhanced API Server uruchomiony" -ForegroundColor Green
     
@@ -44,14 +44,14 @@ Write-Host "[KROK 2] Uruchamianie Dashboard Services..." -ForegroundColor Yellow
 Write-Host "===============================================" -ForegroundColor Yellow
 
 $Dashboards = @(
-    @{Name="Master Control"; Script="master_control_dashboard.py"; Port=8501},
-    @{Name="Unified Trading"; Script="unified_trading_dashboard.py"; Port=8502},
-    @{Name="Bot Monitor"; Script="enhanced_bot_monitor.py"; Port=8503},
-    @{Name="Analytics"; Script="advanced_trading_analytics.py"; Port=8504},
-    @{Name="Notifications"; Script="notification_dashboard.py"; Port=8505},
-    @{Name="Portfolio"; Script="portfolio_dashboard.py"; Port=8506},
-    @{Name="ML Analytics"; Script="ml_predictive_analytics.py"; Port=8507},
-    @{Name="Enhanced"; Script="enhanced_dashboard.py"; Port=8508}
+    @{Name="Master Control"; Script="master_control_dashboard.py"; Port=4501},
+    @{Name="Unified Trading"; Script="unified_trading_dashboard.py"; Port=4502},
+    @{Name="Bot Monitor"; Script="enhanced_bot_monitor.py"; Port=4503},
+    @{Name="Analytics"; Script="advanced_trading_analytics.py"; Port=4504},
+    @{Name="Notifications"; Script="notification_dashboard.py"; Port=4505},
+    @{Name="Portfolio"; Script="portfolio_dashboard.py"; Port=4506},
+    @{Name="ML Analytics"; Script="ml_predictive_analytics.py"; Port=4507},
+    @{Name="Enhanced"; Script="enhanced_dashboard.py"; Port=4508}
 )
 
 foreach ($Dashboard in $Dashboards) {
@@ -88,23 +88,23 @@ Write-Host ""
 
 Write-Host "[SUKCES] Serwery Backend API:" -ForegroundColor Green
 Write-Host "    • Main API Server:     http://localhost:5000" -ForegroundColor White
-Write-Host "    • Enhanced API Server: http://localhost:5001" -ForegroundColor White
+Write-Host "    • Enhanced API Server: http://localhost:4001" -ForegroundColor White
 Write-Host ""
 
 Write-Host "[SUKCES] Dashboardy Trading:" -ForegroundColor Green
-Write-Host "    • Master Control:    http://localhost:8501" -ForegroundColor White
-Write-Host "    • Unified Trading:   http://localhost:8502" -ForegroundColor White
-Write-Host "    • Bot Monitor:       http://localhost:8503" -ForegroundColor White
-Write-Host "    • Trading Analytics: http://localhost:8504" -ForegroundColor White
-Write-Host "    • Notifications:     http://localhost:8505" -ForegroundColor White
-Write-Host "    • Portfolio:         http://localhost:8506" -ForegroundColor White
-Write-Host "    • ML Analytics:      http://localhost:8507" -ForegroundColor White
-Write-Host "    • Enhanced:          http://localhost:8508" -ForegroundColor White
+Write-Host "    • Master Control:    http://localhost:4501" -ForegroundColor White
+Write-Host "    • Unified Trading:   http://localhost:4502" -ForegroundColor White
+Write-Host "    • Bot Monitor:       http://localhost:4503" -ForegroundColor White
+Write-Host "    • Trading Analytics: http://localhost:4504" -ForegroundColor White
+Write-Host "    • Notifications:     http://localhost:4505" -ForegroundColor White
+Write-Host "    • Portfolio:         http://localhost:4506" -ForegroundColor White
+Write-Host "    • ML Analytics:      http://localhost:4507" -ForegroundColor White
+Write-Host "    • Enhanced:          http://localhost:4508" -ForegroundColor White
 Write-Host ""
 
 Write-Host "[INFO] Otwieranie Master Control Dashboard..." -ForegroundColor Cyan
 try {
-    Start-Process "http://localhost:8501"
+    Start-Process "http://localhost:4501"
 } catch {
     Write-Host "    ⚠️  Nie można otworzyć przeglądarki automatycznie" -ForegroundColor Yellow
 }
@@ -131,7 +131,7 @@ try {
 }
 
 try {
-    $response = Invoke-WebRequest -Uri "http://localhost:5001" -TimeoutSec 3 -ErrorAction SilentlyContinue
+    $response = Invoke-WebRequest -Uri "http://localhost:4001" -TimeoutSec 3 -ErrorAction SilentlyContinue
     if ($response.StatusCode -eq 200) {
         Write-Host "    ✅ Enhanced API Server - ODPOWIADA" -ForegroundColor Green
     }
@@ -140,7 +140,7 @@ try {
 }
 
 try {
-    $response = Invoke-WebRequest -Uri "http://localhost:8501" -TimeoutSec 3 -ErrorAction SilentlyContinue
+    $response = Invoke-WebRequest -Uri "http://localhost:4501" -TimeoutSec 3 -ErrorAction SilentlyContinue
     if ($response.StatusCode -eq 200) {
         Write-Host "    ✅ Master Control - ODPOWIADA" -ForegroundColor Green
     }

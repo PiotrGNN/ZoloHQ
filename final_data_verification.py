@@ -151,13 +151,13 @@ def main():
     print("🔍 WERYFIKACJA PRAWDZIWYCH DANYCH W DASHBOARDACH")
     print("=" * 70)
     print(f"Data sprawdzenia: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("Sprawdzane porty: 8501, 8503, 8504")
+    print("Sprawdzane porty: 4501, 4503, 4504")
 
     # Dashboardy do sprawdzenia
     dashboards = [
-        ("unified_trading_dashboard.py", "Port 8501 - Unified Trading Dashboard"),
-        ("master_control_dashboard.py", "Port 8503 - Master Control Dashboard"),
-        ("advanced_trading_analytics.py", "Port 8504 - Advanced Trading Analytics"),
+        ("unified_trading_dashboard.py", "Port 4501 - Unified Trading Dashboard"),
+        ("master_control_dashboard.py", "Port 4503 - Master Control Dashboard"),
+        ("advanced_trading_analytics.py", "Port 4504 - Advanced Trading Analytics"),
     ]
 
     results = []
@@ -193,14 +193,14 @@ def main():
 
     if all_good:
         print("\n✅ SYSTEM GOTOWY DO URUCHOMIENIA:")
-        print("   streamlit run unified_trading_dashboard.py --server.port 8501")
-        print("   streamlit run master_control_dashboard.py --server.port 8503")
-        print("   streamlit run advanced_trading_analytics.py --server.port 8504")
+        print("   streamlit run unified_trading_dashboard.py --server.port 4501")
+        print("   streamlit run master_control_dashboard.py --server.port 4503")
+        print("   streamlit run advanced_trading_analytics.py --server.port 4504")
 
         print("\n📱 DASHBOARD URLS:")
-        print("   🎛️ Unified Trading: http://localhost:8501")
-        print("   🎮 Master Control: http://localhost:8503")
-        print("   📈 Advanced Analytics: http://localhost:8504")
+        print("   🎛️ Unified Trading: http://localhost:4501")
+        print("   🎮 Master Control: http://localhost:4503")
+        print("   📈 Advanced Analytics: http://localhost:4504")
 
     return all_good
 

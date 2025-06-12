@@ -180,7 +180,7 @@ class DataExportImportSystem:
 
             # Try local API
             response = requests.get(
-                "http://localhost:5001/api/trades",
+                "http://localhost:4001/api/trades",
                 params={"start": start_date, "end": end_date},
                 timeout=10,
             )

@@ -184,7 +184,7 @@ def main():
         },
         {
             "script": base_dir / "enhanced_dashboard_api.py",
-            "port": 5001,
+            "port": 4001,
             "name": "Enhanced API Server",
         },
     ]
@@ -207,24 +207,24 @@ def main():
     dashboard_services = [
         {
             "script": "master_control_dashboard.py",
-            "port": 8501,
+            "port": 4501,
             "name": "Master Control",
         },
         {
             "script": "unified_trading_dashboard.py",
-            "port": 8502,
+            "port": 4502,
             "name": "Unified Trading",
         },
-        {"script": "enhanced_bot_monitor.py", "port": 8503, "name": "Bot Monitor"},
+        {"script": "enhanced_bot_monitor.py", "port": 4503, "name": "Bot Monitor"},
         {
             "script": "advanced_trading_analytics.py",
-            "port": 8504,
+            "port": 4504,
             "name": "Trading Analytics",
         },
-        {"script": "notification_dashboard.py", "port": 8505, "name": "Notifications"},
-        {"script": "portfolio_dashboard.py", "port": 8506, "name": "Portfolio"},
-        {"script": "ml_predictive_analytics.py", "port": 8507, "name": "ML Analytics"},
-        {"script": "enhanced_dashboard.py", "port": 8508, "name": "Enhanced Dashboard"},
+        {"script": "notification_dashboard.py", "port": 4505, "name": "Notifications"},
+        {"script": "portfolio_dashboard.py", "port": 4506, "name": "Portfolio"},
+        {"script": "ml_predictive_analytics.py", "port": 4507, "name": "ML Analytics"},
+        {"script": "enhanced_dashboard.py", "port": 4508, "name": "Enhanced Dashboard"},
     ]
 
     for service in dashboard_services:
@@ -245,7 +245,7 @@ def main():
 
     # Check API services
     check_service("http://localhost:5000", "Main API Server")
-    check_service("http://localhost:5001", "Enhanced API Server")
+    check_service("http://localhost:4001", "Enhanced API Server")
 
     # Check dashboard services
     for service in dashboard_services:
@@ -258,20 +258,20 @@ def main():
 
     print("\n📡 Backend Services:")
     print("   • Main API Server: http://localhost:5000")
-    print("   • Enhanced API Server: http://localhost:5001")
+    print("   • Enhanced API Server: http://localhost:4001")
 
     print("\n🎯 Trading Dashboards:")
     for service in dashboard_services:
         print(f"   • {service['name']}: http://localhost:{service['port']}")
 
     print("\n🚀 Quick Access:")
-    print("   • Master Control: http://localhost:8501")
-    print("   • Unified Trading: http://localhost:8502")
+    print("   • Master Control: http://localhost:4501")
+    print("   • Unified Trading: http://localhost:4502")
 
     # Open main dashboard
     try:
         print("\n🌐 Opening Master Control Dashboard...")
-        webbrowser.open("http://localhost:8501")
+        webbrowser.open("http://localhost:4501")
     except Exception as e:
         logging.exception(f"Could not auto-open browser: {e}")
         print("⚠️  Could not auto-open browser")
