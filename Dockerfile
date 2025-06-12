@@ -9,8 +9,8 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Copy only dependency files for better cache
-COPY ZoL0-master/pyproject.toml ./pyproject.toml
-COPY ZoL0-master/poetry.lock ./poetry.lock
+COPY pyproject.toml ./pyproject.toml
+COPY poetry.lock ./poetry.lock
 
 # Install Poetry (compatible version for 'export' command)
 RUN pip install --upgrade pip && \
@@ -27,7 +27,7 @@ RUN apt-get update && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /install /usr/local
-COPY ZoL0-master/ .
+COPY . .
 ENV PYTHONUNBUFFERED=1
 
 # (Optional) Run minimal test, do not fail build if tests fail
