@@ -55,13 +55,17 @@ try:
             )
 
         def generate_signals(self, data):
-            # Przykład: sygnał na podstawie predykcji ensemble
+            """Generate trading signals using an ensemble of ML models."""
             X = data[self.selected_features]
-            preds = np.mean([m.predict(X) for m in self.strategy["models"]], axis=0)
-            return np.where(preds > 0, 1, -1)  # long/short
+            X_norm = (X - X.mean()) / (X.std() + 1e-9)
+            preds = np.vstack([m.predict(X_norm) for m in self.strategy["models"]])
+            vote = np.mean(preds, axis=0)
+            return np.where(vote > 0, 1, -1)
 
         def calculate_position_size(self, signal, current_price, portfolio_value):
-            return 1.0  # Prosty przykład
+            risk_pct = 0.01
+            notional = portfolio_value * risk_pct
+            return max(notional / current_price, 1.0)
 
     STRATEGY_CLASSES["AI_ML_Strategy"] = AI_ML_Strategy
 except Exception:

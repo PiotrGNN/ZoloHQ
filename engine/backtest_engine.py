@@ -389,13 +389,17 @@ class BacktestEngine:
                     trailing_stop_price = None
             # Dynamic trailing stop logic
             if dynamic_trailing and position > 0:
-                # Przykład: trailing stop dynamiczny na podstawie ATR (Average True Range)
+                # Advanced ATR-based dynamic trailing stop
                 window = 14
                 if i >= window:
-                    atr = (
-                        data["high"].rolling(window).max().iloc[i]
-                        - data["low"].rolling(window).min().iloc[i]
-                    )
+                    high = data["high"].iloc[i - window + 1 : i + 1]
+                    low = data["low"].iloc[i - window + 1 : i + 1]
+                    close = data["close"].iloc[i - window + 1 : i + 1]
+                    tr = pd.concat(
+                        [high - low, (high - close.shift()).abs(), (low - close.shift()).abs()],
+                        axis=1,
+                    ).max(axis=1)
+                    atr = tr.mean()
                     dynamic_pct = atr / price
                     if position_side == OrderSide.BUY:
                         new_trailing = price * (1 - dynamic_pct)

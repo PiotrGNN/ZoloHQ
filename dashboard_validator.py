@@ -9,6 +9,8 @@ import sys
 import time
 import traceback
 from datetime import datetime
+import os
+import subprocess
 
 
 class DashboardValidator:
@@ -266,6 +268,28 @@ if __name__ == "__main__":
     else:
         sys.exit(2)
 
-# TODO: Integrate with CI/CD pipeline for automated dashboard validation and edge-case tests.
+# CI/CD integration for automated dashboard validation tests
+def run_ci_cd_dashboard_validation() -> None:
+    """Run dashboard validation tests when executed in CI."""
+    if not os.getenv("CI"):
+        return
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-k",
+        "dashboard_validator",
+        "--maxfail=1",
+        "--disable-warnings",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    print(proc.stdout)
+    if proc.returncode != 0:
+        print(proc.stderr)
+        raise RuntimeError(
+            f"CI/CD dashboard validation failed with exit code {proc.returncode}"
+        )
+
 # Edge-case tests: simulate import errors, missing modules, and optimization failures.
 # All public methods have docstrings and exception handling.

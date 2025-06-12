@@ -9,6 +9,9 @@ import time
 from datetime import datetime
 from functools import wraps
 from typing import Any, Dict
+import os
+import subprocess
+import sys
 
 import pandas as pd
 import psutil
@@ -300,6 +303,30 @@ if __name__ == "__main__":
 
     test_optimize_session_state_error()
 
-# TODO: Integrate with CI/CD pipeline for automated dashboard performance and edge-case tests.
+# CI/CD integration for automated dashboard performance tests
+def run_ci_cd_dashboard_tests() -> None:
+    """Execute dashboard performance tests when running in CI."""
+    if not os.getenv("CI"):
+        logger.debug("CI environment not detected; skipping dashboard tests")
+        return
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-k",
+        "dashboard and performance",
+        "--maxfail=1",
+        "--disable-warnings",
+    ]
+    logger.info("Running CI/CD dashboard tests: %s", " ".join(cmd))
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    logger.info(proc.stdout)
+    if proc.returncode != 0:
+        logger.error(proc.stderr)
+        raise RuntimeError(
+            f"CI/CD dashboard tests failed with exit code {proc.returncode}"
+        )
+
 # Edge-case tests: simulate performance metric errors, cache issues, and resource exhaustion.
 # All public methods have docstrings and exception handling.

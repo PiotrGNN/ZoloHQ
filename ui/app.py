@@ -431,19 +431,19 @@ def main():
         and "result" in locals()
     ):
         pm = PortfolioManager(initial_cash=100000)
-        # Przykładowe dane: delta z transakcji (jeśli dostępne)
         spot_prices = pd.Series([t.exit_price for t in result.trades])
         option_deltas = pd.Series([getattr(t, "delta", 0.5) for t in result.trades])
-        hedge_positions = pm.dynamic_hedging(spot_prices, option_deltas)
+        volatility = spot_prices.pct_change().rolling(window=20).std().fillna(0)
+        hedge_positions = pm.dynamic_hedging(spot_prices, option_deltas) * (1 + volatility)
         st.write("Pozycje hedgujące (delta):")
         st.write(hedge_positions.tolist())
 
     st.sidebar.subheader("Factor Investing Weights")
     if st.sidebar.button("Oblicz wagi factor investing") and "result" in locals():
         pm = PortfolioManager(initial_cash=100000)
-        # Przykładowe scoringi czynnikowe (można podmienić na realne)
         factor_scores = {
-            t.symbol: getattr(t, "factor_score", 1.0) for t in result.trades
+            t.symbol: getattr(t, "factor_score", 1.0) * abs(t.pnl)
+            for t in result.trades
         }
         weights = pm.factor_investing_weights(factor_scores)
         st.write("Wagi factor investing:")
@@ -452,8 +452,10 @@ def main():
     st.sidebar.subheader("ML Portfolio Selection")
     if st.sidebar.button("Oblicz ML portfolio selection") and "result" in locals():
         pm = PortfolioManager(initial_cash=100000)
-        # Przykładowe dane X, y (historyczne zwroty, przyszłe zwroty)
-        X = pd.DataFrame({"feature": [t.pnl for t in result.trades]})
+        X = pd.DataFrame({
+            "return": [t.pnl for t in result.trades],
+            "duration": [t.duration for t in result.trades],
+        })
         y = pd.Series([t.pnl for t in result.trades])
         weights = pm.ml_portfolio_selection(X, y)
         st.write("Wagi portfela (ML):")
