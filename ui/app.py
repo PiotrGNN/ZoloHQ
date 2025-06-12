@@ -434,7 +434,8 @@ def main():
         spot_prices = pd.Series([t.exit_price for t in result.trades])
         option_deltas = pd.Series([getattr(t, "delta", 0.5) for t in result.trades])
         volatility = spot_prices.pct_change().rolling(window=20).std().fillna(0)
-        hedge_positions = pm.dynamic_hedging(spot_prices, option_deltas) * (1 + volatility)
+        max_scaling_factor = 2.0  # Cap the scaling factor to prevent excessive amplification
+        hedge_positions = pm.dynamic_hedging(spot_prices, option_deltas) * min(1 + volatility, max_scaling_factor)
         st.write("Pozycje hedgujące (delta):")
         st.write(hedge_positions.tolist())
 
