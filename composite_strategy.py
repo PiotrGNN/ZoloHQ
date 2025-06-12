@@ -4,6 +4,9 @@ from data.demo_data import generate_demo_data
 from engine.backtest_engine import BacktestEngine
 from strategies.mean_reversion import MeanReversionStrategy
 from strategies.momentum import MomentumStrategy
+import os
+import subprocess
+import sys
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +20,8 @@ class CompositeStrategy:
 
     def __init__(self, strategies, weights=None):
         self.strategies = strategies
+        if weights is not None and len(weights) != len(strategies):
+            raise ValueError("weights length must match number of strategies")
         self.weights = weights or [1.0 / len(strategies)] * len(strategies)
         self.name = "CompositeStrategy"
 
@@ -26,7 +31,9 @@ class CompositeStrategy:
         signals = []
         for strat in self.strategies:
             s = strat.generate_signals(data)
-            signals.append(s["signal"].values if hasattr(s, "values") else s)
+            sig = s["signal"]
+            sig_arr = sig.values if hasattr(sig, "values") else sig
+            signals.append(np.array(sig_arr))
         signals = np.array(signals)
         # Weighted sum, then sign for ensemble decision
         weighted = np.tensordot(self.weights, signals, axes=1)
@@ -41,7 +48,30 @@ class CompositeStrategy:
         return sum(sizes) / len(sizes)
 
 
-# TODO: Integrate with CI/CD pipeline for automated strategy ensemble and edge-case tests.
+# CI/CD integration for automated strategy ensemble tests
+def run_ci_cd_composite_strategy_tests() -> None:
+    """Run composite strategy tests in CI/CD pipelines."""
+    if not os.getenv("CI"):
+        logger.debug("CI environment not detected; skipping composite tests")
+        return
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "tests/test_composite_strategy.py",
+        "--maxfail=1",
+        "--disable-warnings",
+    ]
+    logger.info("Running CI/CD composite strategy tests: %s", " ".join(cmd))
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    logger.info(proc.stdout)
+    if proc.returncode != 0:
+        logger.error(proc.stderr)
+        raise RuntimeError(
+            f"CI/CD composite strategy tests failed with exit code {proc.returncode}"
+        )
+
 # Edge-case tests: simulate empty data, mismatched weights, and strategy errors.
 # All public methods have docstrings and exception handling where needed.
 

@@ -8,6 +8,8 @@ import json
 import os
 import time
 from datetime import datetime
+import subprocess
+import sys
 
 import psutil
 
@@ -111,4 +113,21 @@ def test_report_write_error():
 if __name__ == "__main__":
     monitor = MemoryLeakMonitor()
     monitor.monitor_continuous(60)  # Monitor for 1 hour
-    # TODO: Dodać workflow CI/CD do automatycznego uruchamiania testów i lintingu.
+
+    def run_ci_cd_memory_checks() -> None:
+        """Run memory monitoring tests and linting in CI/CD pipelines."""
+        if not os.getenv("CI"):
+            return
+
+        commands = [
+            [sys.executable, "-m", "pytest", "tests/test_active_memory_leak_detector.py"],
+            ["ruff", "--quiet", "./"],
+        ]
+        for cmd in commands:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            print(result.stdout)
+            if result.returncode != 0:
+                print(result.stderr)
+                raise RuntimeError(f"Command {' '.join(cmd)} failed")
+
+    run_ci_cd_memory_checks()

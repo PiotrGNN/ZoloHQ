@@ -17,6 +17,9 @@ from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import os
+import subprocess
+import sys
 
 import numpy as np
 
@@ -627,7 +630,34 @@ class AdaptiveRateLimiter:
             return False, max(0.0, wait_time)
 
 
-# TODO: Integrate with CI/CD pipeline for automated rate limit and performance tests.
+# CI/CD integration for automated rate limit and performance tests
+def run_ci_cd_rate_limit_tests() -> None:
+    """Run rate limit and performance tests in a CI/CD environment."""
+    logger = logging.getLogger(__name__)
+    if not os.getenv("CI"):
+        logger.debug("CI environment not detected; skipping automated tests")
+        return
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-m",
+        "performance",
+        "-k",
+        "rate_limit",
+        "--maxfail=1",
+        "--disable-warnings",
+    ]
+    logger.info("Executing CI/CD rate limit tests: %s", " ".join(cmd))
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    logger.info(proc.stdout)
+    if proc.returncode != 0:
+        logger.error(proc.stderr)
+        raise RuntimeError(
+            f"CI/CD rate limit tests failed with exit code {proc.returncode}"
+        )
+
 # Edge-case tests: simulate API spikes, config errors, and invalid input.
 # All public methods have docstrings and exception handling.
 
