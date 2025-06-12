@@ -1,0 +1,21 @@
+# Default configuration for ZoL0 trading system
+
+environment:
+  mode: development
+  debug: true
+  log_level: INFO
+
+api:
+  port: 8000
+  host: 127.0.0.1
+  rate_limit: 100
+  timeout: 30
+
+trading:
+  mode: simulated
+  initial_balance: 10000.0
+  base_currency: USD
+  max_risk: 0.05
+  max_position_size: 0.2
+
+# Add other sections as needed for your system

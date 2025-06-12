@@ -1,0 +1,23 @@
+[project]
+name = "zol0-trading-system"
+version = "0.1.0"
+description = "ZoL0 Trading System: Streamlit, scikit-learn, PyTorch, Bybit integration."
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 120
+fix = true
+unsafe-fixes = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "B9"]
+ignore = ["E501"]
+exclude = ["backups", "*_fixed.py", ".venv", "venv"]
+
+dependencies = [
+    "pytest>=7.0.0"
+]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.0"
+

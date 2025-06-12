@@ -1,4 +1,5 @@
 # Wyklucz katalog wirtualnego środowiska
+.venv/
 venv/
 
 # Pliki tymczasowe i cache
@@ -27,7 +28,19 @@ coverage.*
 *.json
 
 # Inne katalogi i pliki do wykluczenia
-.env
-.env.*
+
 *.bak
 *.tmp
+
+# Dodane dodatkowe typowe wpisy do ignorowania
+.egg-info/
+dist/
+build/
+.eggs/
+.hypothesis/
+.ipynb_checkpoints/
+.github/
+*.pid
+
+# Możesz usunąć poniższy wpis jeśli chcesz trzymać markdowny w repo
+# *.md

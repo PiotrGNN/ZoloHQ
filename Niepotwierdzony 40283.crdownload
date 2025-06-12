@@ -1,0 +1,10 @@
+[pytest]
+markers =
+    benchmark: mark a test as a benchmark
+    security: mark a test as a security test
+    e2e: mark a test as an end-to-end test
+    stress: mark a test as a stress test
+    unit: mark a test as a unit test
+    performance: mark a test as a performance test
+    order: mark a test with execution order
+    load: mark a test as a load test

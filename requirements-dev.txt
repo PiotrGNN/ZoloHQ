@@ -1,0 +1,20 @@
+-r requirements.txt
+
+# ---- Lint & static ----
+ruff==0.4.4
+mypy==1.10.0
+bandit==1.7.8
+detect-secrets==1.5.0
+vulture==2.11
+
+# ---- Testing ----
+pytest==8.2.1
+pytest-asyncio==0.23.6
+pytest-cov==5.0.0
+pytest-timeout==2.3.1
+pytest-randomly==3.15.0
+hypothesis==6.103.1
+coverage-badge==1.1.0
+
+# ---- Aux ----
+asyncstdlib==3.12.3   # używane w runtime helperach
