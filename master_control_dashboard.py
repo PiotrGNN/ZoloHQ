@@ -20,6 +20,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List
 
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
@@ -463,6 +464,34 @@ class MasterControlDashboard:
             "status": "active",
         }
         return True
+
+
+def ai_system_health_analytics(services):
+    errors = [s for s, v in services.items() if v["status"] != "online"]
+    recs = []
+    if errors:
+        recs.append(f"{len(errors)} service(s) are not online: {', '.join(errors)}. Investigate immediately.")
+    else:
+        recs.append("All core services are online. System is healthy.")
+    if len(errors) > 2:
+        recs.append("Multiple services offline. Consider system-wide optimization and failover.")
+    recs.append("Upgrade to premium for predictive health analytics, automated failover, and advanced controls.")
+    return recs
+
+def show_monetization_widgets():
+    st.markdown("---")
+    st.subheader("4b0 Monetization & Upgrades")
+    st.info("Upgrade to premium for advanced analytics, predictive health, and automated optimization.")
+    st.markdown("[Affiliate Program](https://zol0.com/affiliate) | [SaaS/Partner Solutions](https://zol0.com/partners)")
+    st.success("[PREMIUM] Access advanced system controls and real-time optimization.")
+
+def show_ai_analytics_panel(services):
+    st.markdown("---")
+    st.subheader("916 AI-Driven System Health Analytics")
+    recs = ai_system_health_analytics(services)
+    for rec in recs:
+        st.info(rec)
+    st.markdown("[Learn more about AI-powered analytics](https://zol0.com/ai-analytics)")
 
 
 def main():

@@ -194,7 +194,6 @@ class BinanceConnector:
             raise
 
 # CI/CD: Zautomatyzowane testy edge-case i workflow wdrożone w .github/workflows/ci-cd.yml
-# (TODO usunięty po wdrożeniu automatyzacji)
 
 # Edge-case test examples (to be expanded in test suite)
 def _test_edge_cases():

@@ -14,7 +14,7 @@ python ZoL0-master/main.py --env staging
 
 ---
 
-# Przykładowy skrypt do automatycznego uruchamiania i restartu bota (Windows)
+# Skrypt do automatycznego uruchamiania i restartu bota (Windows)
 
 Utwórz plik `run_bot.ps1` z zawartością:
 

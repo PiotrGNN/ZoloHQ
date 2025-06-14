@@ -4,6 +4,11 @@ Detailed production manager test
 """
 
 import json
+from dotenv import load_dotenv
+import os
+import pytest
+
+load_dotenv()
 
 try:
     print("Starting detailed test...")
@@ -13,31 +18,37 @@ try:
     print("✅ Production Manager loaded")
     print(f"🔧 Production mode: {mgr.is_production}")
 
-    # Test real data with detailed output
-    print("\n=== Testing Account Balance ===")
-    balance = mgr.get_account_balance(use_cache=False)
+    def test_production_manager_detailed():
+        api_key = os.getenv("BYBIT_API_KEY")
+        api_secret = os.getenv("BYBIT_API_SECRET")
+        if not api_key or not api_secret:
+            pytest.skip("BYBIT_API_KEY or BYBIT_API_SECRET not set in environment.")
 
-    print("Raw balance response:")
-    print(json.dumps(balance, indent=2, default=str))
+        # Test real data with detailed output
+        print("\n=== Testing Account Balance ===")
+        balance = mgr.get_account_balance(use_cache=False)
 
-    print(
-        f"\nBalance keys: {list(balance.keys()) if isinstance(balance, dict) else 'Not a dict'}"
-    )
-    print(f"Success field: {balance.get('success')}")
-    print(f"Data source: {balance.get('data_source')}")
-    print(f"RetCode: {balance.get('retCode')}")
+        print("Raw balance response:")
+        print(json.dumps(balance, indent=2, default=str))
 
-    # Test the connector directly
-    print("\n=== Testing Bybit Connector Direct ===")
-    if hasattr(mgr, "bybit_connector") and mgr.bybit_connector:
-        try:
-            direct_balance = mgr.bybit_connector.get_account_balance()
-            print("Direct connector response:")
-            print(json.dumps(direct_balance, indent=2, default=str))
-        except Exception as e:
-            print(f"Direct connector error: {e}")
-    else:
-        print("No bybit_connector available")
+        print(
+            f"\nBalance keys: {list(balance.keys()) if isinstance(balance, dict) else 'Not a dict'}"
+        )
+        print(f"Success field: {balance.get('success')}")
+        print(f"Data source: {balance.get('data_source')}")
+        print(f"RetCode: {balance.get('retCode')}")
+
+        # Test the connector directly
+        print("\n=== Testing Bybit Connector Direct ===")
+        if hasattr(mgr, "bybit_connector") and mgr.bybit_connector:
+            try:
+                direct_balance = mgr.bybit_connector.get_account_balance()
+                print("Direct connector response:")
+                print(json.dumps(direct_balance, indent=2, default=str))
+            except Exception as e:
+                print(f"Direct connector error: {e}")
+        else:
+            print("No bybit_connector available")
 
 except Exception as e:
     print(f"❌ Error: {e}")

@@ -9,6 +9,7 @@ import os
 import time
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -108,6 +109,39 @@ def create_memory_trend_chart(processes_df):
     )
 
     return fig
+
+
+def ai_memory_analytics(processes, system_memory):
+    critical = [p for p in processes if p["Status"].startswith("6a8")]  # CRITICAL
+    high = [p for p in processes if p["Status"].startswith("6a0")]  # HIGH
+    recs = []
+    if critical:
+        recs.append(f"{len(critical)} process(es) in CRITICAL memory state. Immediate action required.")
+    if high:
+        recs.append(f"{len(high)} process(es) in HIGH memory state. Consider optimization or scaling.")
+    if not critical and not high:
+        recs.append("All processes are within safe memory limits.")
+    if system_memory["Percentage"] > 80:
+        recs.append("System RAM usage above 80%. Consider scaling or optimizing workloads.")
+    recs.append("Upgrade to premium for predictive memory analytics, automated optimization, and SaaS/partner integration.")
+    return recs
+
+
+def show_monetization_widgets():
+    st.markdown("---")
+    st.subheader("4b0 Monetization & Upgrades")
+    st.info("Upgrade to premium for advanced memory analytics, predictive optimization, and automated scaling.")
+    st.markdown("[Affiliate Program](https://zol0.com/affiliate) | [SaaS/Partner Solutions](https://zol0.com/partners)")
+    st.success("[PREMIUM] Access advanced memory controls and real-time optimization.")
+
+
+def show_ai_analytics_panel(processes, system_memory):
+    st.markdown("---")
+    st.subheader("916 AI-Driven Memory Analytics")
+    recs = ai_memory_analytics(processes, system_memory)
+    for rec in recs:
+        st.info(rec)
+    st.markdown("[Learn more about AI-powered memory analytics](https://zol0.com/ai-analytics)")
 
 
 def main():
@@ -264,6 +298,12 @@ def main():
 
     except Exception as e:
         st.error(f"Memory optimizer not available: {e}")
+
+    # AI-driven analytics and monetization
+    processes = get_zol0_processes()
+    system_memory = get_system_memory_info()
+    show_ai_analytics_panel(processes, system_memory)
+    show_monetization_widgets()
 
     # Auto-refresh
     if auto_refresh:

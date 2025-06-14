@@ -11,28 +11,34 @@ from pathlib import Path
 # Add ZoL0-master to path
 sys.path.append(str(Path(__file__).parent / "ZoL0-master"))
 
+import pytest
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def test_basic_connection():
     """Test basic connection without production data manager"""
     try:
         print("🔍 Testing basic Bybit connection...")
         # Load environment variables
-        from dotenv import load_dotenv
 
         from data.execution.bybit_connector import BybitConnector
-
-        env_path = Path(__file__).parent / "ZoL0-master" / ".env"
-        if env_path.exists():
-            load_dotenv(env_path)
 
         api_key = os.getenv("BYBIT_API_KEY", "lAXnmPeMMVecqcW8oT")
         api_secret = os.getenv(
             "BYBIT_API_SECRET", "RAQcrNjFSVBGWeRBjQGL8fTRzbtbKHmAArGz"
         )
 
+        if not api_key:
+            pytest.skip("BYBIT_API_KEY not set in environment.")
+
         # Create connector with timeout
+        if "BYBIT_TESTNET" not in os.environ:
+            print("⚠️  BYBIT_TESTNET not set in environment. Defaulting to production (testnet=False).")
+        use_testnet = os.getenv("BYBIT_TESTNET", "false").lower() == "true"
         connector = BybitConnector(
-            api_key=api_key, api_secret=api_secret, use_testnet=False  # Production
+            api_key=api_key, api_secret=api_secret, testnet=use_testnet  # Production if false
         )
 
         print("✅ Connector created, testing server time...")
@@ -64,18 +70,12 @@ def test_basic_connection():
                 assert True
             else:
                 print(f"❌ Balance failed: {balance}")
-                import pytest
-
                 pytest.skip("Balance API failed or unavailable; skipping test.")
         else:
             print(f"❌ Connection failed: {server_time}")
-            import pytest
-
             pytest.skip("Bybit API connection failed or unavailable; skipping test.")
     except Exception as e:
         print(f"❌ Exception in basic connection: {e}")
-        import pytest
-
         pytest.skip(f"Exception in Bybit connection: {e}")
 
 

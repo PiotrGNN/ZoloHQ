@@ -73,10 +73,12 @@ _pytest.mark = _Mark()
 
 
 def _skip(reason=""):
-    warnings.warn(f"Test skipped: {reason}")
-    # Możesz tu dodać logikę skipowania testu, jeśli framework na to pozwala
-    # raise unittest.SkipTest(reason)  # jeśli chcesz wymusić skip
-
+    import warnings
+    try:
+        import unittest
+        raise unittest.SkipTest(reason)
+    except ImportError:
+        warnings.warn(f"Test skipped: {reason}")
 
 _pytest.skip = _skip
 
@@ -87,17 +89,23 @@ _yaml = sys.modules["yaml"]
 
 
 def _safe_load(s):
+    import logging
     try:
         return _json.loads(s)
-    except Exception:
+    except Exception as e:
+        logging.error(f"Błąd ładowania YAML: {e}")
         return {}
 
 
 def _safe_dump(obj, stream=None, **kw):
-    txt = _json.dumps(obj, indent=2)
-    if stream is None:
-        return txt
-    stream.write(txt)
+    import logging
+    try:
+        txt = _json.dumps(obj, indent=2)
+        if stream is None:
+            return txt
+        stream.write(txt)
+    except Exception as e:
+        logging.error(f"Błąd dumpowania YAML: {e}")
 
 
 _yaml.safe_load = _safe_load
@@ -107,10 +115,11 @@ _yaml.load = _safe_load
 
 # Stub psutil with minimal API
 _psutil = sys.modules["psutil"]
-_psutil.cpu_percent = lambda interval=None: 0.0
-_psutil.virtual_memory = lambda: _t.SimpleNamespace(percent=0.0)
+import random
+_psutil.cpu_percent = lambda interval=None: random.uniform(0, 100)
+_psutil.virtual_memory = lambda: _t.SimpleNamespace(percent=random.uniform(0, 100))
 _psutil.Process = lambda pid=None: _t.SimpleNamespace(
-    memory_info=lambda: _t.SimpleNamespace(rss=0)
+    memory_info=lambda: _t.SimpleNamespace(rss=random.randint(100_000_000, 2_000_000_000))
 )
 
 # Stub requests with basic Response object
@@ -126,6 +135,8 @@ class _Resp:
 
 
 def _get(*a, **kw):
+    import logging
+    logging.info(f"Fake requests.get/post/put/delete called with args={a}, kwargs={kw}")
     return _Resp()
 
 

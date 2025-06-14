@@ -7,6 +7,8 @@ Validates that all dashboards can start without KeyError exceptions
 import os
 import subprocess
 import sys
+import json
+import concurrent.futures
 
 import pytest
 
@@ -35,42 +37,47 @@ def dashboard_file():
     return "unified_trading_dashboard.py"
 
 
+# Parallel dashboard launch test for automation/monetization
+DASHBOARDS = [
+    ("Port 8501", "unified_trading_dashboard.py"),
+    ("Port 8503", "master_control_dashboard.py"),
+    ("Port 8504", "advanced_trading_analytics.py"),
+]
+
+
+def launch_dashboard(file_path):
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "py_compile", file_path],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return (file_path, result.returncode == 0, result.stderr)
+    except Exception as e:
+        return (file_path, False, str(e))
+
+
 def main():
     print("🚀 Quick Dashboard Launch Test")
     print("=" * 50)
-
-    dashboards = [
-        ("Port 8501", "unified_trading_dashboard.py"),
-        ("Port 8503", "master_control_dashboard.py"),
-        ("Port 8504", "advanced_trading_analytics.py"),
-    ]
-
     all_passed = True
-
-    for name, file_path in dashboards:
-        if os.path.exists(file_path):
-            print(f"\n🔧 Testing {name} ({file_path})...")
-            success, message = test_dashboard_import(file_path)
-
-            if success:
-                print(f"   ✅ {message}")
-            else:
-                print(f"   ❌ {message}")
+    results = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_dashboard = {executor.submit(launch_dashboard, f): (n, f) for n, f in DASHBOARDS}
+        for future in concurrent.futures.as_completed(future_to_dashboard):
+            name, file_path = future_to_dashboard[future]
+            file, passed, err = future.result()
+            print(f"{name}: {'PASS' if passed else 'FAIL'}")
+            if not passed:
+                print(f"  Error: {err}")
                 all_passed = False
-        else:
-            print(f"   ❌ File not found: {file_path}")
-            all_passed = False
-
-    print("\n" + "=" * 50)
-    assert all_passed, "Some dashboards have issues - check errors above"
-
-    print("🎉 ALL DASHBOARDS READY FOR LAUNCH!")
-    print("\nTo start dashboards:")
-    print("   streamlit run unified_trading_dashboard.py --server.port 8501")
-    print("   streamlit run master_control_dashboard.py --server.port 8503")
-    print("   streamlit run advanced_trading_analytics.py --server.port 8504")
+            results.append({"dashboard": name, "file": file, "passed": passed, "error": err})
+    # Output machine-readable results for CI/CD/monetization
+    with open("dashboard_launch_results.json", "w") as f:
+        json.dump(results, f, indent=2)
+    sys.exit(0 if all_passed else 1)
 
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    main()

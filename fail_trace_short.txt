@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.1, pytest-8.2.1, pluggy-1.6.0 -- /home/codespace/.python/current/bin/python3
+cachedir: .pytest_cache
+hypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/workspaces/ZoloHQ/.hypothesis/examples'))
+Using --randomly-seed=1436771166
+rootdir: /workspaces/ZoloHQ
+configfile: pytest.ini
+plugins: anyio-4.9.0, hypothesis-6.103.1, cov-5.0.0, timeout-2.3.1, asyncio-0.23.6, randomly-3.15.0
+asyncio: mode=Mode.STRICT
+collecting ... collected 149 items / 1 skipped
+
+tests/test_api_cache_system.py::test_cache_expiry FAILED                 [  0%]
+tests/test_api_cache_system.py::test_cache_entry_lifecycle FAILED        [  1%]
+tests/test_api_cache_system.py::test_cache_db_permission_error PASSED    [  2%]
+tests/test_api_backtest.py::test_api_backtest_invalid_strategy PASSED    [  2%]
+tests/test_api_backtest.py::test_api_backtest_missing_params PASSED      [  3%]
+tests/test_process_memory_manager.py::test_get_python_processes PASSED   [  4%]
+tests/test_process_memory_manager.py::test_terminate_process_safely_handles_invalid 

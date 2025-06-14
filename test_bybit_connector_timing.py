@@ -4,11 +4,19 @@ Test individual Bybit connector methods to understand performance bottlenecks
 """
 
 import time
+import os
+import pytest
+from dotenv import load_dotenv
 
 from production_data_manager import ProductionDataManager
 
+load_dotenv()
+
 
 def test_bybit_connector_timing():
+    if not os.getenv("BYBIT_API_KEY") or not os.getenv("BYBIT_API_SECRET"):
+        pytest.skip("BYBIT_API_KEY or BYBIT_API_SECRET not set in environment.")
+
     """Test timing of individual bybit connector methods"""
     print("🔍 TESTING BYBIT CONNECTOR TIMING")
     print("=" * 50)

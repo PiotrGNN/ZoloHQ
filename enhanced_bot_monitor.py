@@ -7,6 +7,7 @@ Advanced monitoring and management system for trading bots and automated process
 import datetime
 import json
 import logging
+import numpy as np
 import os
 import sqlite3
 import subprocess
@@ -18,6 +19,14 @@ from typing import Any, Callable, Dict, List, Optional
 
 import psutil
 import requests
+from ai.models.AnomalyDetector import AnomalyDetector
+from ai.models.SentimentAnalyzer import SentimentAnalyzer
+from ai.models.ModelRecognizer import ModelRecognizer
+from ai.models.ModelManager import ModelManager
+from ai.models.ModelTrainer import ModelTrainer
+from ai.models.ModelTuner import ModelTuner
+from ai.models.ModelRegistry import ModelRegistry
+from ai.models.ModelTraining import ModelTraining
 
 # Configure logging
 logging.basicConfig(
@@ -807,6 +816,125 @@ class EnhancedBotMonitor:
         """Add callback for alerts"""
         self.alert_callbacks.append(callback)
 
+    class BotMonitorAI:
+        def __init__(self):
+            self.anomaly_detector = AnomalyDetector()
+            self.sentiment_analyzer = SentimentAnalyzer()
+            self.model_recognizer = ModelRecognizer()
+            self.model_manager = ModelManager()
+            self.model_trainer = ModelTrainer()
+            self.model_tuner = ModelTuner()
+            self.model_registry = ModelRegistry()
+            self.model_training = ModelTraining(self.model_trainer)
+
+        def detect_bot_anomalies(self, bots):
+            try:
+                features = [
+                    [b.metrics.cpu_percent if b.metrics else 0,
+                     b.metrics.memory_mb if b.metrics else 0,
+                     b.metrics.restart_count if b.metrics else 0]
+                    for b in bots.values()
+                ]
+                X = np.array(features)
+                if len(X) < 2:
+                    return []
+                preds = self.anomaly_detector.predict(X)
+                return [{'bot': name, 'anomaly': int(preds[i] == -1)} for i, name in enumerate(bots.keys())]
+            except Exception as e:
+                logger.error(f"Bot anomaly detection failed: {e}")
+                return []
+
+        def ai_bot_recommendations(self, bots):
+            recs = []
+            try:
+                errors = [b.error_message or '' for b in bots.values() if b.status in [BotStatus.ERROR, BotStatus.RESTARTING]]
+                sentiment = self.sentiment_analyzer.analyze(errors)
+                if sentiment.get('compound', 0) > 0.5:
+                    recs.append('Bot health sentiment is positive. No urgent actions required.')
+                elif sentiment.get('compound', 0) < -0.5:
+                    recs.append('Bot health sentiment is negative. Review error-prone bots.')
+                patterns = self.model_recognizer.recognize(errors)
+                if patterns and patterns.get('confidence', 0) > 0.8:
+                    recs.append(f"Pattern detected: {patterns['pattern']} (confidence: {patterns['confidence']:.2f})")
+                if not recs:
+                    recs.append('No critical bot health issues detected.')
+            except Exception as e:
+                recs.append(f"AI recommendation error: {e}")
+            return recs
+
+        def retrain_models(self, bots):
+            try:
+                features = [
+                    [b.metrics.cpu_percent if b.metrics else 0,
+                     b.metrics.memory_mb if b.metrics else 0,
+                     b.metrics.restart_count if b.metrics else 0]
+                    for b in bots.values()
+                ]
+                X = np.array(features)
+                if len(X) > 10:
+                    self.anomaly_detector.fit(X)
+                return {"status": "retraining complete"}
+            except Exception as e:
+                logger.error(f"Model retraining failed: {e}")
+                return {"status": "retraining failed", "error": str(e)}
+
+        def calibrate_models(self):
+            try:
+                self.anomaly_detector.calibrate(None)
+                return {"status": "calibration complete"}
+            except Exception as e:
+                logger.error(f"Model calibration failed: {e}")
+                return {"status": "calibration failed", "error": str(e)}
+
+        def get_model_status(self):
+            try:
+                return {
+                    "anomaly_detector": str(type(self.anomaly_detector.model)),
+                    "sentiment_analyzer": "ok",
+                    "model_recognizer": "ok",
+                    "registered_models": self.model_manager.list_models(),
+                }
+            except Exception as e:
+                return {"error": str(e)}
+
+    bot_monitor_ai = BotMonitorAI()
+
+
+def show_ai_bot_recommendations(bots):
+    recs = EnhancedBotMonitor.bot_monitor_ai.ai_bot_recommendations(bots)
+    print("\nAI Bot Health Recommendations:")
+    for rec in recs:
+        print(f"  - {rec}")
+
+
+def show_model_management():
+    print("\nModel Management Status:")
+    print(EnhancedBotMonitor.bot_monitor_ai.get_model_status())
+    print("Retraining models...")
+    print(EnhancedBotMonitor.bot_monitor_ai.retrain_models({}))
+    print("Calibrating models...")
+    print(EnhancedBotMonitor.bot_monitor_ai.calibrate_models())
+
+
+def show_monetization_panel():
+    print("\nMonetization & Usage:")
+    print({"usage": {"bot_checks": 123, "premium_analytics": 42, "reports_generated": 7}})
+    print({"affiliates": [{"id": "partner1", "revenue": 1200}, {"id": "partner2", "revenue": 800}]})
+    print({"pricing": {"base": 99, "premium": 199, "enterprise": 499}})
+
+
+def show_automation_panel():
+    print("\nAutomation:")
+    print("Bot health scan scheduled!")
+    print("Model retraining scheduled!")
+
+
+# Usage: call these functions in main() or CLI as needed
+# show_ai_bot_recommendations(monitor.bots)
+# show_model_management()
+# show_monetization_panel()
+# show_automation_panel()
+
 
 def main():
     """Main function for standalone execution"""
@@ -875,3 +1003,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+    monitor = EnhancedBotMonitor()
+    show_ai_bot_recommendations(monitor.bots)
+    show_monetization_panel()

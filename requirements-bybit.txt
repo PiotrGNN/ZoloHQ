@@ -1,0 +1,6 @@
+# requirements-bybit.txt
+# bybit==0.2.12 (usunięto, nie jest już wymagane)
+# urllib3==1.24.2 (usunięto, nie jest już wymagane)
+# Dodaj inne zależności wymagane przez bybit, np. numpy, pandas, itp.
+numpy
+pandas

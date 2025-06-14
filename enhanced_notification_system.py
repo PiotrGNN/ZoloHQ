@@ -16,6 +16,144 @@ from typing import Any, Dict, List
 
 import requests
 import streamlit as st
+import structlog
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+import sentry_sdk
+from fastapi import FastAPI, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
+import redis.asyncio as aioredis
+from typing import Any, List, Dict, Optional
+from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse
+from fastapi.exception_handlers import RequestValidationError
+from fastapi.exceptions import RequestValidationError as FastAPIRequestValidationError
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
+
+
+# --- Sentry Initialization ---
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN", ""),
+    traces_sample_rate=1.0,
+    environment=os.environ.get("SENTRY_ENV", "development"),
+)
+
+# --- Structlog Configuration ---
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(20),
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+logger = structlog.get_logger("enhanced_notification_system")
+
+# --- OpenTelemetry Tracing ---
+tracer_provider = TracerProvider(resource=Resource.create({SERVICE_NAME: "zol0-enhanced-notification-system"}))
+trace.set_tracer_provider(tracer_provider)
+tracer = trace.get_tracer(__name__)
+span_processor = BatchSpanProcessor(ConsoleSpanExporter())
+tracer_provider.add_span_processor(span_processor)
+
+# --- FastAPI App with Security, CORS, GZip, HTTPS, Session, Rate Limiting ---
+notification_api = FastAPI(
+    title="Enhanced Notification System API",
+    version="2.0-maximal",
+    description="Comprehensive, observable, and secure enhanced notification and alerting API.",
+    contact={"name": "ZoL0 Engineering", "email": "support@zol0.ai"},
+    openapi_tags=[
+        {"name": "notification", "description": "Notification endpoints"},
+        {"name": "ci", "description": "CI/CD and test endpoints"},
+        {"name": "info", "description": "Info endpoints"},
+    ],
+)
+
+# --- Middleware ---
+notification_api.add_middleware(GZipMiddleware, minimum_size=1000)
+notification_api.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+notification_api.add_middleware(HTTPSRedirectMiddleware)
+notification_api.add_middleware(TrustedHostMiddleware, allowed_hosts=["*", ".zol0.ai"])
+notification_api.add_middleware(SessionMiddleware, secret_key=os.environ.get("SESSION_SECRET", "supersecret"))
+notification_api.add_middleware(SentryAsgiMiddleware)
+
+# --- Rate Limiting Initialization ---
+@notification_api.on_event("startup")
+async def startup_event() -> None:
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    redis = await aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
+    await FastAPILimiter.init(redis)
+
+# --- Instrumentation ---
+FastAPIInstrumentor.instrument_app(notification_api)
+LoggingInstrumentor().instrument(set_logging_format=True)
+
+# --- Security Headers Middleware ---
+from starlette.middleware.base import BaseHTTPMiddleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=()"
+        return response
+notification_api.add_middleware(SecurityHeadersMiddleware)
+
+# --- Pydantic Models with OpenAPI Examples and Validators ---
+class NotificationRequest(BaseModel):
+    """Request model for sending notifications."""
+    recipient: str = Field(..., example="user@example.com", description="Notification recipient.")
+    message: str = Field(..., example="Critical system alert", description="Notification message.")
+    channel: str = Field(..., example="email", description="Notification channel (email, sms, slack, etc.)")
+
+class HealthResponse(BaseModel):
+    status: str = Field(example="ok")
+    ts: str = Field(example="2025-06-14T12:00:00Z")
+
+# --- Robust Error Handling: Global Exception Handler with Logging, Tracing, Sentry ---
+@notification_api.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception", error=str(exc), path=str(request.url))
+    sentry_sdk.capture_exception(exc)
+    with tracer.start_as_current_span("global_exception_handler"):
+        return JSONResponse(status_code=500, content={"error": str(exc)})
+
+@notification_api.exception_handler(FastAPIRequestValidationError)
+async def validation_exception_handler(request: Request, exc: FastAPIRequestValidationError) -> JSONResponse:
+    logger.error("Validation error", error=str(exc), path=str(request.url))
+    sentry_sdk.capture_exception(exc)
+    with tracer.start_as_current_span("validation_exception_handler"):
+        return JSONResponse(status_code=422, content={"error": str(exc)})
+
+# --- CI/CD Test Endpoint ---
+@notification_api.get("/api/ci/test", tags=["ci"])
+async def api_ci_test() -> Dict[str, str]:
+    """CI/CD pipeline test endpoint."""
+    logger.info("CI/CD test endpoint hit")
+    return {"ci": "ok"}
 
 
 @dataclass

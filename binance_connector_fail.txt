@@ -1,0 +1,173 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.1, pytest-8.2.1, pluggy-1.6.0 -- /home/codespace/.python/current/bin/python3
+cachedir: .pytest_cache
+hypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/workspaces/ZoloHQ/.hypothesis/examples'))
+Using --randomly-seed=430512506
+rootdir: /workspaces/ZoloHQ
+configfile: pytest.ini
+plugins: anyio-4.9.0, hypothesis-6.103.1, cov-5.0.0, timeout-2.3.1, asyncio-0.23.6, randomly-3.15.0
+asyncio: mode=Mode.STRICT
+collecting ... collected 12 items
+
+tests/test_binance_connector.py::test_fetch_ohlcv_async_invalid_symbol PASSED [  8%]
+tests/test_binance_connector.py::test_api_ohlcv FAILED                   [ 16%]
+tests/test_binance_connector.py::test_fetch_ohlcv_invalid_symbol PASSED  [ 25%]
+tests/test_binance_connector.py::test_api_audit_trail FAILED             [ 33%]
+tests/test_binance_connector.py::test_api_compliance_status FAILED       [ 41%]
+
+=================================== FAILURES ===================================
+________________________________ test_api_ohlcv ________________________________
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:69: in map_httpcore_exceptions
+    yield
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:373: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/home/codespace/.python/current/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/test_binance_connector.py:60: in test_api_ohlcv
+    asyncio.run(inner())
+/home/codespace/.python/current/lib/python3.12/asyncio/runners.py:194: in run
+    return runner.run(main)
+/home/codespace/.python/current/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+/home/codespace/.python/current/lib/python3.12/asyncio/base_events.py:684: in run_until_complete
+    return future.result()
+tests/test_binance_connector.py:56: in inner
+    resp = await client.post(f"{BINANCE_API_URL}/api/ohlcv", json={"symbol": "BTCUSDT", "interval": "1h", "limit": 10}, headers={"X-API-KEY": API_KEY})
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1892: in post
+    return await self.request(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1574: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1661: in send
+    response = await self._send_handling_auth(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1689: in _send_handling_auth
+    response = await self._send_handling_redirects(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1726: in _send_handling_redirects
+    response = await self._send_single_request(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1763: in _send_single_request
+    response = await transport.handle_async_request(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:372: in handle_async_request
+    with map_httpcore_exceptions():
+/home/codespace/.python/current/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:86: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+_____________________________ test_api_audit_trail _____________________________
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:69: in map_httpcore_exceptions
+    yield
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:373: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/home/codespace/.python/current/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/test_binance_connector.py:79: in test_api_audit_trail
+    resp = await client.get(f"{BINANCE_API_URL}/api/audit/trail", headers={"X-API-KEY": API_KEY})
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1801: in get
+    return await self.request(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1574: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1661: in send
+    response = await self._send_handling_auth(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1689: in _send_handling_auth
+    response = await self._send_handling_redirects(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1726: in _send_handling_redirects
+    response = await self._send_single_request(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1763: in _send_single_request
+    response = await transport.handle_async_request(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:372: in handle_async_request
+    with map_httpcore_exceptions():
+/home/codespace/.python/current/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:86: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+__________________________ test_api_compliance_status __________________________
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:69: in map_httpcore_exceptions
+    yield
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:373: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:256: in handle_async_request
+    raise exc from None
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection_pool.py:236: in handle_async_request
+    response = await connection.handle_async_request(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:101: in handle_async_request
+    raise exc
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:78: in handle_async_request
+    stream = await self._connect(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_async/connection.py:124: in _connect
+    stream = await self._network_backend.connect_tcp(**kwargs)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_backends/auto.py:31: in connect_tcp
+    return await self._backend.connect_tcp(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_backends/anyio.py:113: in connect_tcp
+    with map_exceptions(exc_map):
+/home/codespace/.python/current/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpcore/_exceptions.py:14: in map_exceptions
+    raise to_exc(exc) from exc
+E   httpcore.ConnectError: All connection attempts failed
+
+The above exception was the direct cause of the following exception:
+tests/test_binance_connector.py:86: in test_api_compliance_status
+    resp = await client.get(f"{BINANCE_API_URL}/api/compliance/status", headers={"X-API-KEY": API_KEY})
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1801: in get
+    return await self.request(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1574: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1661: in send
+    response = await self._send_handling_auth(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1689: in _send_handling_auth
+    response = await self._send_handling_redirects(
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1726: in _send_handling_redirects
+    response = await self._send_single_request(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_client.py:1763: in _send_single_request
+    response = await transport.handle_async_request(request)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:372: in handle_async_request
+    with map_httpcore_exceptions():
+/home/codespace/.python/current/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+/home/codespace/.python/current/lib/python3.12/site-packages/httpx/_transports/default.py:86: in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+E   httpx.ConnectError: All connection attempts failed
+=========================== short test summary info ============================
+FAILED tests/test_binance_connector.py::test_api_ohlcv - httpx.ConnectError: ...
+FAILED tests/test_binance_connector.py::test_api_audit_trail - httpx.ConnectE...
+FAILED tests/test_binance_connector.py::test_api_compliance_status - httpx.Co...
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 3 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+========================= 3 failed, 2 passed in 8.25s ==========================
