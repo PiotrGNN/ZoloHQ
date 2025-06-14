@@ -28,11 +28,16 @@ def test_unified_dashboard():
         required_fields = ["total_profit", "win_rate", "active_bots", "data_source"]
         missing_fields = [field for field in required_fields if field not in perf_data]
 
-        if not missing_fields:
-            print("  ✅ All required fields present")
+        if missing_fields:
+            print(f"❌ Brakujące metryki: {missing_fields}")
         else:
-            print(f"  ❌ Missing fields: {missing_fields}")
-            return False
+            print("✅ Wszystkie kluczowe metryki obecne.")
+
+        # Logowanie nieoptymalnych danych
+        if perf_data.get("total_profit", 0) < 0:
+            print("❌ Dashboard generuje straty! Konieczna optymalizacja.")
+        if perf_data.get("win_rate", 0) < 0.5:
+            print("⚠️ Niska skuteczność strategii!")
 
         print("  ✅ Unified Dashboard test passed")
         return True

@@ -934,6 +934,79 @@ class ProductionMonitor:
         except Exception as e:
             logging.error(f"Failed to update real-time metrics: {e}")
 
+    def get_model_registry_info(self):
+        """Return model registry info for dashboard model management panel"""
+        from ai.models.ModelRegistry import ModelRegistry
+
+        registry = ModelRegistry()
+        return {
+            "models": registry.list_models(),
+            "audit_logs": {m["name"]: registry.get_audit_log(m["name"]) for m in registry.list_models()},
+        }
+
+    def get_tenant_partner_analytics(self, tenant_id: str = "default"):
+        """Return multi-tenant/partner analytics and monetization info"""
+        perf_summary = self.performance_monitor.get_performance_summary(hours=24)
+        return {
+            "usage": perf_summary.get("total_requests", 0),
+            "billing": perf_summary.get("total_requests", 0) * 0.01,
+            "affiliate_stats": perf_summary.get("affiliate_stats", {}),
+            "value_based_price": perf_summary.get("value_based_price", 0),
+            "partner_performance": perf_summary.get("partner_performance", {}).get(tenant_id, {}),
+        }
+
+    def get_audit_and_compliance(self):
+        """Return audit trail and compliance status for dashboard panel"""
+        # Simulate audit trail and compliance status
+        return {
+            "audit_trail": self._get_audit_trail(),
+            "compliance_status": self._get_compliance_status(),
+        }
+
+    def _get_audit_trail(self):
+        # Placeholder: fetch from DB or logs
+        return []
+
+    def _get_compliance_status(self):
+        # Placeholder: real compliance logic
+        return "Compliant"
+
+    def run_predictive_repair(self):
+        """Trigger predictive repair (stub)"""
+        # Integrate with predictive repair system
+        return {"status": "Predictive repair triggered"}
+
+    def run_incident_response(self):
+        """Trigger automated incident response (stub)"""
+        return {"status": "Incident response triggered"}
+
+    def run_self_calibration(self):
+        """Trigger self-calibration (stub)"""
+        return {"status": "Self-calibration triggered"}
+
+    def get_advanced_analytics(self):
+        """Return advanced analytics for dashboard panel"""
+        perf_summary = self.performance_monitor.get_performance_summary(hours=24)
+        return {
+            "cross_asset": perf_summary.get("cross_asset", []),
+            "volatility": perf_summary.get("volatility", []),
+            "correlation": perf_summary.get("correlation", []),
+            "regimes": perf_summary.get("regimes", []),
+            "predictive": perf_summary.get("predictive", []),
+        }
+
+    def get_maximal_dashboard_support(self):
+        """Return maximal dashboard support info for AI/ML, audit, SaaS, compliance, automation, and analytics"""
+        return {
+            'model_registry': self.get_model_registry_info(),
+            'tenant_partner_analytics': self.get_tenant_partner_analytics(),
+            'audit_and_compliance': self.get_audit_and_compliance(),
+            'predictive_repair': self.run_predictive_repair(),
+            'incident_response': self.run_incident_response(),
+            'self_calibration': self.run_self_calibration(),
+            'advanced_analytics': self.get_advanced_analytics(),
+        }
+
 
 # Global production monitor instance
 _production_monitor = None

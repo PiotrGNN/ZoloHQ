@@ -298,8 +298,8 @@ if __name__ == "__main__":
         success = main()
         sys.exit(0 if success else 1)
     except KeyboardInterrupt:
-        print("\n❌ Tests interrupted by user")
-        sys.exit(1)
+        print("\n[INFO] Test suite interrupted by user.")
+        sys.exit(130)
     except Exception as e:
-        print(f"\n💥 Unexpected error: {e}")
+        print(f"[ERROR] Unhandled exception: {e}")
         sys.exit(1)

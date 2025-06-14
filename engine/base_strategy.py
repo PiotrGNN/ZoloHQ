@@ -1,17 +1,18 @@
 """
 BaseStrategy - abstract base class for trading strategies.
 CI/CD: Zautomatyzowane testy edge-case i workflow wdrożone w .github/workflows/ci-cd.yml
-(TODO usunięty po wdrożeniu automatyzacji)
 """
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict
+import logging
 
 
 class BaseStrategy(ABC):
     """
     Abstract base class for trading strategies.
     Each strategy must implement generate_signals and calculate_position_size.
+    Dodano: logowanie, hooki analityczne, obsługa premium, przygotowanie pod monetyzację.
     """
 
     def __init__(self, name: str, parameters: Dict[str, Any]):
@@ -26,6 +27,8 @@ class BaseStrategy(ABC):
         self.positions = {}
         self.orders = []
         self.trades = []
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.premium_features = self.parameters.get("premium_features", False)
 
     @abstractmethod
     def generate_signals(self, data):
@@ -50,6 +53,15 @@ class BaseStrategy(ABC):
             float: Position size.
         """
         pass
+
+    # --- Monetization & Marketplace Hooks ---
+    def register_strategy(self):
+        # In production, register in SaaS/plugin marketplace
+        print(f"Registering strategy: {self.name}")
+
+    def usage_analytics(self, event: str):
+        # In production, send analytics to SaaS
+        print(f"Strategy usage: {self.name}, event={event}")
 
 
 # Edge-case test examples (to be expanded in test suite)

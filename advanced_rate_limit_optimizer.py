@@ -22,6 +22,14 @@ import subprocess
 import sys
 
 import numpy as np
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi.security.api_key import APIKeyHeader
+from pydantic import BaseModel
+from starlette_exporter import PrometheusMiddleware, handle_metrics
+import io
+import csv
+import uvicorn
 
 
 @dataclass
@@ -183,6 +191,7 @@ class AdaptiveRateLimiter:
                     optimization_cycle INTEGER
                 )
             """
+
             )
 
             conn.commit()
@@ -630,40 +639,8 @@ class AdaptiveRateLimiter:
             return False, max(0.0, wait_time)
 
 
-# CI/CD integration for automated rate limit and performance tests
-def run_ci_cd_rate_limit_tests() -> None:
-    """Run rate limit and performance tests in a CI/CD environment."""
-    logger = logging.getLogger(__name__)
-    if not os.getenv("CI"):
-        logger.debug("CI environment not detected; skipping automated tests")
-        return
-
-    cmd = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "-m",
-        "performance",
-        "-k",
-        "rate_limit",
-        "--maxfail=1",
-        "--disable-warnings",
-    ]
-    logger.info("Executing CI/CD rate limit tests: %s", " ".join(cmd))
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    logger.info(proc.stdout)
-    if proc.returncode != 0:
-        logger.error(proc.stderr)
-        raise RuntimeError(
-            f"CI/CD rate limit tests failed with exit code {proc.returncode}"
-        )
-
-# Edge-case tests: simulate API spikes, config errors, and invalid input.
-# All public methods have docstrings and exception handling.
-
 # Global adaptive rate limiter instance
 _adaptive_limiter = None
-
 
 def get_adaptive_rate_limiter() -> AdaptiveRateLimiter:
     """Get global adaptive rate limiter instance"""
@@ -673,65 +650,132 @@ def get_adaptive_rate_limiter() -> AdaptiveRateLimiter:
     return _adaptive_limiter
 
 
+# === FASTAPI ASYNC API FOR ADVANCED RATE LIMIT OPTIMIZER ===
+API_KEYS = {"admin-key": "admin", "optimizer-key": "optimizer", "partner-key": "partner", "premium-key": "premium"}
+API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=False)
+
+def get_api_key(api_key: str = Depends(API_KEY_HEADER)):
+    if api_key in API_KEYS:
+        return API_KEYS[api_key]
+    raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+rate_limit_api = FastAPI(title="ZoL0 Advanced Rate Limit Optimizer API", version="2.0")
+rate_limit_api.add_middleware(PrometheusMiddleware)
+rate_limit_api.add_route("/metrics", handle_metrics)
+
+# --- Pydantic Models ---
+class OptimizeQuery(BaseModel):
+    endpoint: str
+    window_minutes: int = 15
+
+class BatchOptimizeQuery(BaseModel):
+    queries: list[OptimizeQuery]
+
+# --- Global limiter instance ---
+rate_limiter = get_adaptive_rate_limiter()
+
+# --- Endpoints ---
+@rate_limit_api.get("/")
+async def root():
+    return {"status": "ok", "service": "ZoL0 Advanced Rate Limit Optimizer API", "version": "2.0"}
+
+@rate_limit_api.get("/api/health")
+async def api_health():
+    return {"status": "ok", "timestamp": time.time(), "service": "ZoL0 Advanced Rate Limit Optimizer API", "version": "2.0"}
+
+@rate_limit_api.get("/api/optimize", dependencies=[Depends(get_api_key)])
+async def api_optimize(endpoint: str, role: str = Depends(get_api_key)):
+    result = rate_limiter.optimize_rate_limits(endpoint)
+    return {"result": asdict(result) if result else None}
+
+@rate_limit_api.post("/api/optimize/batch", dependencies=[Depends(get_api_key)])
+async def api_optimize_batch(req: BatchOptimizeQuery, role: str = Depends(get_api_key)):
+    results = [rate_limiter.optimize_rate_limits(q.endpoint) for q in req.queries]
+    return {"results": [asdict(r) if r else None for r in results]}
+
+@rate_limit_api.get("/api/recommendations", dependencies=[Depends(get_api_key)])
+async def api_recommendations(role: str = Depends(get_api_key)):
+    recs = rate_limiter.get_optimization_recommendations()
+    return {"recommendations": [asdict(r) for r in recs]}
+
+@rate_limit_api.get("/api/report", dependencies=[Depends(get_api_key)])
+async def api_report(role: str = Depends(get_api_key)):
+    return rate_limiter.get_optimization_report()
+
+@rate_limit_api.get("/api/export/csv", dependencies=[Depends(get_api_key)])
+async def api_export_csv(role: str = Depends(get_api_key)):
+    report = rate_limiter.get_optimization_report()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["endpoint", "old_max_calls", "new_max_calls", "old_min_interval", "new_min_interval", "expected_improvement", "confidence_score", "reason"])
+    for rec in report.get("recommendations", []):
+        writer.writerow([
+            rec["endpoint"],
+            rec["old_config"]["max_calls_per_minute"],
+            rec["new_config"]["max_calls_per_minute"],
+            rec["old_config"]["min_interval"],
+            rec["new_config"]["min_interval"],
+            rec["expected_improvement"],
+            rec["confidence_score"],
+            rec["recommendation_reason"]
+        ])
+    output.seek(0)
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=rate_limit_optimizations.csv"})
+
+@rate_limit_api.get("/api/export/prometheus", dependencies=[Depends(get_api_key)])
+async def api_export_prometheus(role: str = Depends(get_api_key)):
+    # Placeholder for Prometheus export
+    return PlainTextResponse("# HELP rate_limit_optimizations Number of optimizations\nrate_limit_optimizations {}".format(len(rate_limiter.get_optimization_recommendations())), media_type="text/plain")
+
+@rate_limit_api.get("/api/partner/webhook", dependencies=[Depends(get_api_key)])
+async def api_partner_webhook(payload: dict, role: str = Depends(get_api_key)):
+    # Placeholder for partner webhook integration
+    return {"status": "received", "payload": payload}
+
+@rate_limit_api.get("/api/premium/score", dependencies=[Depends(get_api_key)])
+async def api_premium_score(role: str = Depends(get_api_key)):
+    opt = {"saved_requests": 1000}
+    score = RateLimitScorer.score(opt)
+    return {"score": score}
+
+@rate_limit_api.get("/api/saas/tenant/{tenant_id}/report", dependencies=[Depends(get_api_key)])
+async def api_saas_tenant_report(tenant_id: str, role: str = Depends(get_api_key)):
+    # Multi-tenant stub: filter by tenant_id in report (future)
+    return {"tenant_id": tenant_id, "report": rate_limiter.get_optimization_report()}
+
+@rate_limit_api.get("/api/test/edge-case")
+async def api_edge_case():
+    try:
+        raise RuntimeError("Simulated rate limit optimizer edge-case error")
+    except Exception as e:
+        return {"edge_case": str(e)}
+
+@rate_limit_api.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": str(exc)})
+
+# --- Flask premium API moved to conditional block ---
 if __name__ == "__main__":
-    # Test adaptive rate limiting
-    import random
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "flask-premium":
+        from flask import Flask, request, jsonify
+        class RateLimitScorer:
+            @staticmethod
+            def score(opt) -> float:
+                return opt.get('saved_requests', 0) * 0.1
+        premium_rl_app = Flask("premium_rl_api")
+        @premium_rl_app.route("/api/optimize", methods=["POST"])
+        def api_optimize():
+            data = request.json or {}
+            score = RateLimitScorer.score(data)
+            return jsonify({"status": "optimized", "score": score})
+        premium_rl_app.run(host="0.0.0.0", port=8532)
+    else:
+        import uvicorn
+        uvicorn.run("advanced_rate_limit_optimizer:rate_limit_api", host="0.0.0.0", port=8531, reload=True)
 
-    logging.basicConfig(level=logging.INFO)
-
-    # Use logger instead of print for consistent logging
-    logger = logging.getLogger("adaptive_rate_limit_optimizer")
-    logger.info("Testing Adaptive Rate Limiting System...")
-
-    limiter = AdaptiveRateLimiter()
-    limiter.start_adaptive_optimization()
-
-    # Simulate API usage
-    endpoints = [
-        "/api/trading/statistics",
-        "/api/trading/positions",
-        "/api/market/tickers",
-        "/api/trading/history",
-    ]
-
-    logger.info("Simulating API usage patterns...")
-    for i in range(200):
-        endpoint = random.choice(endpoints)
-
-        # Simulate different performance characteristics
-        if "trading" in endpoint:
-            response_time = random.uniform(0.5, 3.0)
-            success = random.random() > 0.02  # 98% success
-            rate_limited = random.random() < 0.01  # 1% rate limited
-        else:
-            response_time = random.uniform(0.2, 2.0)
-            success = random.random() > 0.05  # 95% success
-            rate_limited = random.random() < 0.03  # 3% rate limited
-
-        limiter.record_api_call(endpoint, response_time, success, rate_limited)
-
-        if i % 50 == 0:
-            logger.info(f"Processed {i} API calls...")
-
-    # Wait for optimization analysis
-    time.sleep(2)
-
-    # Get optimization recommendations
-    logger.info("Optimization Recommendations:")
-    recommendations = limiter.get_optimization_recommendations()
-
-    for rec in recommendations:
-        logger.info(f"\nEndpoint: {rec.endpoint}")
-        logger.info(f"  Current: {rec.old_config}")
-        logger.info(f"  Recommended: {rec.new_config}")
-        logger.info(f"  Expected improvement: {rec.expected_improvement:.1%}")
-        logger.info(f"  Confidence: {rec.confidence_score:.1%}")
-        logger.info(f"  Reason: {rec.recommendation_reason}")
-
-    # Get full optimization report
-    logger.info("Optimization Report:")
-    report = limiter.get_optimization_report()
-    logger.info(json.dumps(report, indent=2, default=str))
-
-    limiter.stop_adaptive_optimization()
-    logger.info("Adaptive rate limiting test completed!")
+@rate_limit_api.post("/api/test/record")
+async def api_test_record():
+    """Record a test API call for debugging/validation purposes."""
+    rate_limiter.record_api_call("/api/test/rl", 1.0, True, False)
+    return {"status": "test API call recorded"}

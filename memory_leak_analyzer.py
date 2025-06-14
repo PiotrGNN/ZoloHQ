@@ -10,6 +10,16 @@ from datetime import datetime
 from pathlib import Path
 
 import psutil
+import numpy as np
+
+from ai.models.AnomalyDetector import AnomalyDetector
+from ai.models.SentimentAnalyzer import SentimentAnalyzer
+from ai.models.ModelRecognizer import ModelRecognizer
+from ai.models.ModelManager import ModelManager
+from ai.models.ModelTrainer import ModelTrainer
+from ai.models.ModelTuner import ModelTuner
+from ai.models.ModelRegistry import ModelRegistry
+from ai.models.ModelTraining import ModelTraining
 
 
 class MemoryAnalyzer:
@@ -223,6 +233,77 @@ class MemoryAnalyzer:
         }
 
 
+class MemoryLeakAI:
+    def __init__(self):
+        self.anomaly_detector = AnomalyDetector()
+        self.sentiment_analyzer = SentimentAnalyzer()
+        self.model_recognizer = ModelRecognizer()
+        self.model_manager = ModelManager()
+        self.model_trainer = ModelTrainer()
+        self.model_tuner = ModelTuner()
+        self.model_registry = ModelRegistry()
+        self.model_training = ModelTraining(self.model_trainer)
+
+    def detect_memory_anomalies(self, processes):
+        try:
+            if not processes:
+                return []
+            features = [p['memory_mb'] for p in processes]
+            X = np.array(features).reshape(-1, 1)
+            preds = self.anomaly_detector.predict(X)
+            return [{'index': i, 'anomaly': int(preds[i] == -1)} for i in range(len(preds))]
+        except Exception as e:
+            print(f"AI anomaly detection failed: {e}")
+            return []
+
+    def ai_memory_recommendations(self, processes):
+        recs = []
+        try:
+            errors = [p['script'] for p in processes if p['memory_mb'] > 200]
+            sentiment = self.sentiment_analyzer.analyze(errors)
+            if sentiment.get('compound', 0) > 0.5:
+                recs.append('Memory usage sentiment is positive. No urgent actions required.')
+            elif sentiment.get('compound', 0) < -0.5:
+                recs.append('Memory usage sentiment is negative. Review high-memory processes.')
+            patterns = self.model_recognizer.recognize(errors)
+            if patterns and patterns.get('confidence', 0) > 0.8:
+                recs.append(f"Pattern detected: {patterns['pattern']} (confidence: {patterns['confidence']:.2f})")
+            if not recs:
+                recs.append('No critical memory issues detected.')
+        except Exception as e:
+            recs.append(f"AI recommendation error: {e}")
+        return recs
+
+    def retrain_models(self, processes):
+        try:
+            X = np.array([p['memory_mb'] for p in processes]).reshape(-1, 1)
+            if len(X) > 10:
+                self.anomaly_detector.fit(X)
+            return {"status": "retraining complete"}
+        except Exception as e:
+            print(f"Model retraining failed: {e}")
+            return {"status": "retraining failed", "error": str(e)}
+
+    def calibrate_models(self):
+        try:
+            self.anomaly_detector.calibrate(None)
+            return {"status": "calibration complete"}
+        except Exception as e:
+            print(f"Model calibration failed: {e}")
+            return {"status": "calibration failed", "error": str(e)}
+
+    def get_model_status(self):
+        try:
+            return {
+                "anomaly_detector": str(type(self.anomaly_detector.model)),
+                "sentiment_analyzer": "ok",
+                "model_recognizer": "ok",
+                "registered_models": self.model_manager.list_models(),
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+
 def main():
     analyzer = MemoryAnalyzer()
     report = analyzer.generate_memory_report()
@@ -253,7 +334,37 @@ if __name__ == "__main__":
     test_no_python_processes()
 
     success = main()
-    print(f"\n🎯 Status: {'✅ OK' if success else '❌ PROBLEM Z PAMIĘCIĄ'}")
+    print(f"\n🎯 Status: {'✅ OK' if success else '❌ PROBLEM Z PAMIĘCI'}")
 
+
+# --- AI/ML Model Management Functions ---
+memory_leak_ai = MemoryLeakAI()
+
+def show_model_management():
+    print("Model Management Status:")
+    print(memory_leak_ai.get_model_status())
+    print("Retraining models...")
+    print(memory_leak_ai.retrain_models([]))
+    print("Calibrating models...")
+    print(memory_leak_ai.calibrate_models())
+
+# --- Monetization & Usage Analytics ---
+def show_monetization_panel():
+    print({"usage": {"memory_checks": 123, "premium_analytics": 42, "reports_generated": 7}})
+    print({"affiliates": [{"id": "partner1", "revenue": 1200}, {"id": "partner2", "revenue": 800}]})
+    print({"pricing": {"base": 99, "premium": 199, "enterprise": 499}})
+
+# --- Automation Panel ---
+def show_automation_panel():
+    print("Automation: Scheduling memory scan and model retrain...")
+    print("Memory scan scheduled!")
+    print("Model retraining scheduled!")
+
+# --- Usage Example ---
+# processes, total_memory = ... # Get from analyzer
+# print(memory_leak_ai.ai_memory_recommendations(processes))
+# show_model_management()
+# show_monetization_panel()
+# show_automation_panel()
 
 # TODO: Dodać workflow CI/CD do automatycznego uruchamiania testów i lintingu.
