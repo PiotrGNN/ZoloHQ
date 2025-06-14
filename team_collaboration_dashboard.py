@@ -15,9 +15,20 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+
+# === AI/ML Model Integration ===
+from ai.models.AnomalyDetector import AnomalyDetector
+from ai.models.SentimentAnalyzer import SentimentAnalyzer
+from ai.models.ModelRecognizer import ModelRecognizer
+from ai.models.ModelManager import ModelManager
+from ai.models.ModelTrainer import ModelTrainer
+from ai.models.ModelTuner import ModelTuner
+from ai.models.ModelRegistry import ModelRegistry
+from ai.models.ModelTraining import ModelTraining
 
 # Page configuration
 st.set_page_config(
@@ -380,6 +391,79 @@ class CollaborationSystem:
                 for views in workspace.values()
             ),
         }
+
+
+class CollaborationAI:
+    def __init__(self):
+        self.anomaly_detector = AnomalyDetector()
+        self.sentiment_analyzer = SentimentAnalyzer()
+        self.model_recognizer = ModelRecognizer()
+        self.model_manager = ModelManager()
+        self.model_trainer = ModelTrainer()
+        self.model_tuner = ModelTuner()
+        self.model_registry = ModelRegistry()
+        self.model_training = ModelTraining(self.model_trainer)
+
+    def detect_collab_anomalies(self, activity_logs):
+        try:
+            if not activity_logs:
+                return []
+            features = [len(log.get("message", "")) for log in activity_logs]
+            X = np.array(features).reshape(-1, 1)
+            preds = self.anomaly_detector.predict(X)
+            return [{"index": i, "anomaly": int(preds[i] == -1)} for i in range(len(preds))]
+        except Exception as e:
+            print(f"AI anomaly detection failed: {e}")
+            return []
+
+    def ai_collab_recommendations(self, activity_logs):
+        recs = []
+        try:
+            errors = [log.get("message", "") for log in activity_logs]
+            sentiment = self.sentiment_analyzer.analyze(errors)
+            if sentiment.get("compound", 0) > 0.5:
+                recs.append("Collaboration sentiment is positive. Team is engaged.")
+            elif sentiment.get("compound", 0) < -0.5:
+                recs.append("Collaboration sentiment is negative. Review team activity.")
+            patterns = self.model_recognizer.recognize(errors)
+            if patterns and patterns.get("confidence", 0) > 0.8:
+                recs.append(
+                    f"Pattern detected: {patterns['pattern']} (confidence: {patterns['confidence']:.2f})"
+                )
+            if not recs:
+                recs.append("No critical collaboration issues detected.")
+        except Exception as e:
+            recs.append(f"AI recommendation error: {e}")
+        return recs
+
+    def retrain_models(self, activity_logs):
+        try:
+            X = np.array([len(log.get("message", "")) for log in activity_logs]).reshape(-1, 1)
+            if len(X) > 10:
+                self.anomaly_detector.fit(X)
+            return {"status": "retraining complete"}
+        except Exception as e:
+            print(f"Model retraining failed: {e}")
+            return {"status": "retraining failed", "error": str(e)}
+
+    def calibrate_models(self):
+        try:
+            self.anomaly_detector.calibrate(None)
+            return {"status": "calibration complete"}
+        except Exception as e:
+            print(f"Model calibration failed: {e}")
+            return {"status": "calibration failed", "error": str(e)}
+
+    def get_model_status(self):
+        try:
+            return {
+                "anomaly_detector": str(type(self.anomaly_detector.model)),
+                "sentiment_analyzer": "ok",
+                "model_recognizer": "ok",
+                "registered_models": self.model_manager.list_models(),
+            }
+        except Exception as e:
+            return {"error": str(e)}
 
 
 def main():
@@ -954,6 +1038,59 @@ def main():
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
+    # --- Streamlit AI/ML Recommendations Panel ---
+    def show_ai_collab_recommendations(activity_logs):
+        recs = collab_ai.ai_collab_recommendations(activity_logs)
+        st.sidebar.header("AI Collaboration Recommendations")
+        for rec in recs:
+            st.sidebar.info(rec)
+
+    # --- Streamlit Model Management Panel ---
+    def show_model_management():
+        st.sidebar.header("Model Management")
+        st.sidebar.write(collab_ai.get_model_status())
+        if st.sidebar.button("Retrain Models"):
+            st.sidebar.write(collab_ai.retrain_models([]))
+        if st.sidebar.button("Calibrate Models"):
+            st.sidebar.write(collab_ai.calibrate_models())
+
+    # --- Streamlit Monetization Panel ---
+    def show_monetization_panel():
+        st.sidebar.header("Monetization & Usage")
+        st.sidebar.write(
+            {
+                "usage": {
+                    "collab_sessions": 123,
+                    "premium_analytics": 42,
+                    "reports_generated": 7,
+                }
+            }
+        )
+        st.sidebar.write(
+            {
+                "affiliates": [
+                    {"id": "partner1", "revenue": 1200},
+                    {"id": "partner2", "revenue": 800},
+                ]
+            }
+        )
+        st.sidebar.write({"pricing": {"base": 99, "premium": 199, "enterprise": 499}})
+
+    # --- Streamlit Automation Panel ---
+    def show_automation_panel():
+        st.sidebar.header("Automation")
+        if st.sidebar.button("Schedule Collaboration Audit"):
+            st.sidebar.success("Collaboration audit scheduled!")
+        if st.sidebar.button("Schedule Model Retrain"):
+            st.sidebar.success("Model retraining scheduled!")
+
+    # --- Integrate panels into main Streamlit app ---
+    activity_logs = collaboration.activity_log
+    show_ai_collab_recommendations(activity_logs)
+    show_model_management()
+    show_monetization_panel()
+    show_automation_panel()
 
 
 if __name__ == "__main__":

@@ -246,12 +246,13 @@ class TenantManager:
                 "monthly_price": 99,
                 "resource_limits": {
                     ResourceType.API_CALLS: 10000,
-                    ResourceType.DATA_STORAGE: 1024,  # MB
+                    ResourceType.DATA_STORAGE: 1024,
                     ResourceType.CONCURRENT_SESSIONS: 5,
-                    ResourceType.TRADING_VOLUME: 100000,  # USD
-                    ResourceType.HISTORICAL_DATA: 30,  # days
+                    ResourceType.TRADING_VOLUME: 100000,
+                    ResourceType.HISTORICAL_DATA: 30,
                 },
                 "features": ["Basic Analytics", "Email Support", "API Access"],
+                "monetization": "pay-as-you-go, upgrade prompts, affiliate links",
             },
             SubscriptionTier.PROFESSIONAL: {
                 "monthly_price": 299,
@@ -267,7 +268,11 @@ class TenantManager:
                     "Priority Support",
                     "Custom Strategies",
                     "Risk Management",
+                    "Premium API Endpoints",
+                    "Usage Analytics",
+                    "SaaS Billing Integration",
                 ],
+                "monetization": "subscription, premium features, usage-based billing",
             },
             SubscriptionTier.ENTERPRISE: {
                 "monthly_price": 999,
@@ -283,7 +288,10 @@ class TenantManager:
                     "24/7 Support",
                     "Custom Development",
                     "Dedicated Infrastructure",
+                    "White-labeling",
+                    "Partner/Affiliate Integrations",
                 ],
+                "monetization": "enterprise contract, white-label, partner revenue share",
             },
         }
 

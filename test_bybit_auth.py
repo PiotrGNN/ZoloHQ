@@ -13,34 +13,27 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Add the ZoL0-master directory to the path
-zol0_path = os.path.join(os.path.dirname(__file__), "ZoL0-master")
-if zol0_path not in sys.path:
-    sys.path.insert(0, zol0_path)
-
-
 def test_bybit_authentication():
     """Test the fixed Bybit authentication system."""
     print(f"[{datetime.now()}] Testing Bybit Authentication Fixes")
     print("=" * 60)
 
     try:
-        from data.execution.bybit_connector import BybitConnector
-
-        # Check environment variables
         api_key = os.getenv("BYBIT_API_KEY")
         api_secret = os.getenv("BYBIT_API_SECRET")
-
         if not api_key or not api_secret:
-            pytest.skip("❌ Missing BYBIT_API_KEY or BYBIT_API_SECRET environment variables")
+            pytest.skip("BYBIT_API_KEY or BYBIT_API_SECRET not set in environment.")
 
         print(f"✅ API Key found: {api_key[:8]}...")
         print(f"✅ API Secret found: {'*' * len(api_secret)}")
 
         # Initialize connector
         print("\n📡 Initializing Bybit Connector...")
+        if "BYBIT_TESTNET" not in os.environ:
+            print("⚠️  BYBIT_TESTNET not set in environment. Defaulting to production (testnet=False).")
+        use_testnet = os.getenv("BYBIT_TESTNET", "false").lower() == "true"
         connector = BybitConnector(
-            api_key=api_key, api_secret=api_secret, use_testnet=False  # Production
+            api_key=api_key, api_secret=api_secret, testnet=use_testnet  # Production if false
         )
         print("✅ Connector initialized successfully")
 

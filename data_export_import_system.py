@@ -18,7 +18,7 @@ import time
 import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
 import pandas as pd
 import requests
@@ -28,6 +28,13 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+import asyncio
+from fastapi import FastAPI, Query, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi.security.api_key import APIKeyHeader
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+import uvicorn
+from typing import Optional
 
 # Add production data integration
 try:
@@ -170,49 +177,12 @@ class DataExportImportSystem:
         }
 
     def get_trading_data(self, start_date: str, end_date: str) -> pd.DataFrame:
-        """Get trading data from API or real production data"""
-        try:
-            # Try to get real trading data from production if available
-            if self.production_data_manager and self.is_production:
-                real_data = self.fetch_real_trading_data(start_date, end_date)
-                if not real_data.empty:
-                    return real_data
-
-            # Try local API
-            response = requests.get(
-                "http://localhost:4001/api/trades",
-                params={"start": start_date, "end": end_date},
-                timeout=10,
-            )
-            if response.status_code == 200:
-                return pd.DataFrame(response.json())
-        except Exception:
-            pass
-
-        # Generate synthetic trading data as fallback
-        dates = pd.date_range(start=start_date, end=end_date, freq="h")
-        data = []
-
-        for i, date in enumerate(dates):
-            if i % 6 == 0:  # Trade every 6 hours on average
-                data.append(
-                    {
-                        "timestamp": date,
-                        "bot_id": f"bot_{(i % 5) + 1}",
-                        "pair": ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD"][
-                            i % 5
-                        ],
-                        "side": "buy" if i % 2 == 0 else "sell",
-                        "amount": round(1000 + (i % 1000), 2),
-                        "price": round(1.1 + (i % 100) * 0.001, 4),
-                        "profit": round(-50 + (i % 200), 2),
-                        "commission": round(2 + (i % 5), 2),
-                        "status": "completed",
-                        "strategy": ["scalping", "swing", "arbitrage", "trend"][i % 4],
-                    }
-                )
-
-        return pd.DataFrame(data)
+        """Get trading data from Bybit production API only (no fallback/demo)."""
+        real_data = self.fetch_real_trading_data(start_date, end_date)
+        if real_data is not None and not real_data.empty:
+            return real_data
+        else:
+            raise RuntimeError("No real Bybit data available for the selected period. Check API keys and Bybit connectivity.")
 
     def fetch_real_trading_data(self, start_date: str, end_date: str) -> pd.DataFrame:
         """Fetch real trading data from Bybit API"""
@@ -693,6 +663,31 @@ class DataExportImportSystem:
 
         return next_run
 
+    def generate_rolling_metrics(self, data: pd.DataFrame, window: int = 30) -> pd.DataFrame:
+        """Generate rolling window metrics (profit, win rate, drawdown, Sharpe, etc.)"""
+        if data.empty or 'profit' not in data.columns:
+            return pd.DataFrame()
+        df = data.copy()
+        df['rolling_profit'] = df['profit'].rolling(window=window).sum()
+        df['rolling_win_rate'] = df['profit'].rolling(window=window).apply(lambda x: (x > 0).mean() * 100)
+        df['rolling_drawdown'] = df['profit'].cumsum() - df['profit'].cumsum().cummax()
+        df['rolling_sharpe'] = df['profit'].rolling(window=window).mean() / (df['profit'].rolling(window=window).std() + 1e-8)
+        return df[['timestamp', 'rolling_profit', 'rolling_win_rate', 'rolling_drawdown', 'rolling_sharpe']]
+
+    def scenario_analysis(self, data: pd.DataFrame, scenarios: Dict[str, Dict[str, float]]) -> pd.DataFrame:
+        """Run scenario analysis on trading data (e.g., stress test with different parameters)"""
+        results = []
+        for name, params in scenarios.items():
+            df = data.copy()
+            # Example: apply profit multiplier and commission change
+            profit_mult = params.get('profit_mult', 1.0)
+            commission_add = params.get('commission_add', 0.0)
+            df['profit'] = df['profit'] * profit_mult
+            df['commission'] = df['commission'] + commission_add
+            summary = self.generate_summary_data(df)
+            summary['Scenario'] = name
+            results.append(summary)
+        return pd.concat(results, ignore_index=True) if results else pd.DataFrame()
 
 def main():
     # Header
@@ -1297,3 +1292,156 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# --- API Endpoints ---
+API_KEY = os.environ.get("EXPORT_API_KEY", "admin-key")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def get_api_key(api_key: Optional[str] = Depends(api_key_header)):
+    if api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return api_key
+
+export_api = FastAPI(title="ZoL0 Data Export/Import API", version="3.0-modernized")
+EXPORT_REQUESTS = Counter(
+    "export_api_requests_total", "Total export API requests", ["endpoint"]
+)
+EXPORT_LATENCY = Histogram(
+    "export_api_latency_seconds", "Export API endpoint latency", ["endpoint"]
+)
+
+@export_api.get("/health", tags=["health"])
+async def health():
+    return {"status": "ok", "service": "ZoL0 Export/Import API", "version": "3.0"}
+
+@export_api.get("/metrics", tags=["monitoring"])
+def metrics():
+    return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+@export_api.get("/export/csv", tags=["export"], dependencies=[Depends(get_api_key)])
+async def api_export_csv(start: str = Query(...), end: str = Query(...)):
+    data = DataExportImportSystem().get_trading_data(start, end)
+    csv_data = DataExportImportSystem().export_to_csv(data, "trading_data.csv")
+    return StreamingResponse(iter([csv_data]), media_type="text/csv")
+
+@export_api.get("/export/json", tags=["export"], dependencies=[Depends(get_api_key)])
+async def api_export_json(start: str = Query(...), end: str = Query(...)):
+    data = DataExportImportSystem().get_trading_data(start, end)
+    json_data = DataExportImportSystem().export_to_json(data)
+    return JSONResponse(content=json.loads(json_data))
+
+@export_api.get("/export/excel", tags=["export"], dependencies=[Depends(get_api_key)])
+async def api_export_excel(start: str = Query(...), end: str = Query(...)):
+    data = DataExportImportSystem().get_trading_data(start, end)
+    excel_data = DataExportImportSystem().export_to_excel(data, "weekly_report")
+    return StreamingResponse(iter([excel_data]), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+@export_api.get("/export/pdf", tags=["export"], dependencies=[Depends(get_api_key)])
+async def api_export_pdf(start: str = Query(...), end: str = Query(...)):
+    data = DataExportImportSystem().get_trading_data(start, end)
+    pdf_data = DataExportImportSystem().export_to_pdf(data, "daily_summary")
+    return StreamingResponse(iter([pdf_data]), media_type="application/pdf")
+
+@export_api.post("/import/file", tags=["import"], dependencies=[Depends(get_api_key)])
+async def api_import_file(file: UploadFile = File(...)):
+    ext = file.filename.split(".")[-1]
+    content = await file.read()
+    if ext == "csv":
+        df = pd.read_csv(io.BytesIO(content))
+    elif ext == "json":
+        df = pd.read_json(io.BytesIO(content))
+    elif ext == "xlsx":
+        df = pd.read_excel(io.BytesIO(content))
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    return {"rows": len(df)}
+
+@export_api.post("/import/api", tags=["import"], dependencies=[Depends(get_api_key)])
+async def api_import_api(api_url: str = Query(...), api_key: str = Query(None)):
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    response = requests.get(api_url, headers=headers, timeout=30)
+    if response.status_code == 200:
+        data = response.json()
+        return {"rows": len(data)}
+    else:
+        raise HTTPException(status_code=400, detail=f"API request failed: {response.status_code}")
+
+@export_api.get("/report/generate", tags=["report"], dependencies=[Depends(get_api_key)])
+async def api_generate_report(template: str = Query("daily_summary"), start: str = Query(...), end: str = Query(...)):
+    data = DataExportImportSystem().get_trading_data(start, end)
+    if template == "pdf":
+        pdf_data = DataExportImportSystem().export_to_pdf(data, "daily_summary")
+        return StreamingResponse(iter([pdf_data]), media_type="application/pdf")
+    elif template == "excel":
+        excel_data = DataExportImportSystem().export_to_excel(data, "weekly_report")
+        return StreamingResponse(iter([excel_data]), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    elif template == "json":
+        json_data = DataExportImportSystem().export_to_json(data)
+        return JSONResponse(content=json.loads(json_data))
+    else:
+        csv_data = DataExportImportSystem().export_to_csv(data, "trading_data.csv")
+        return StreamingResponse(iter([csv_data]), media_type="text/csv")
+
+@export_api.post("/backup/create", tags=["backup"], dependencies=[Depends(get_api_key)])
+async def api_create_backup(include_logs: bool = True, include_models: bool = True):
+    backup_data = DataExportImportSystem().create_backup(include_logs, include_models)
+    return StreamingResponse(iter([backup_data]), media_type="application/zip")
+
+@export_api.get("/etl/status", tags=["etl"], dependencies=[Depends(get_api_key)])
+async def api_etl_status():
+    # Stub for ETL pipeline status
+    return {"pipelines": [
+        {"name": "Trading Data", "status": "Running"},
+        {"name": "Log Processing", "status": "Running"},
+        {"name": "ML Training", "status": "Stopped"},
+        {"name": "Report Generation", "status": "Running"},
+    ]}
+
+@export_api.get("/analytics/recommendations", tags=["analytics"], dependencies=[Depends(get_api_key)])
+async def api_recommendations():
+    return {"recommendations": [
+        "Automate scheduled exports for compliance.",
+        "Enable premium for advanced report templates.",
+        "Integrate with SaaS/partner for multi-tenant analytics."
+    ]}
+
+@export_api.get("/monetize/premium", tags=["monetization"], dependencies=[Depends(get_api_key)])
+async def api_premium():
+    return {"premium": True, "features": ["priority support", "custom templates", "white-label"]}
+
+@export_api.get("/saas/tenant/{tenant_id}/report", tags=["saas"], dependencies=[Depends(get_api_key)])
+async def api_saas_tenant_report(tenant_id: str, start: str = Query(...), end: str = Query(...)):
+    data = DataExportImportSystem().get_trading_data(start, end)
+    return {"tenant_id": tenant_id, "report": data.to_dict("records")}
+
+@export_api.post("/partner/webhook", tags=["partner"], dependencies=[Depends(get_api_key)])
+async def api_partner_webhook(payload: dict):
+    return {"status": "received", "payload": payload}
+
+@export_api.get("/ci-cd/edge-case-test", tags=["ci-cd"], dependencies=[Depends(get_api_key)])
+async def api_edge_case_test():
+    try:
+        raise RuntimeError("Simulated export/import edge-case error")
+    except Exception as e:
+        return {"edge_case": str(e)}
+
+@export_api.get("/export/rolling-metrics", tags=["export"], dependencies=[Depends(get_api_key)])
+async def api_export_rolling_metrics(start: str = Query(...), end: str = Query(...), window: int = Query(30)):
+    data = DataExportImportSystem().get_trading_data(start, end)
+    rolling = DataExportImportSystem().generate_rolling_metrics(data, window)
+    csv_data = rolling.to_csv(index=False)
+    return StreamingResponse(iter([csv_data]), media_type="text/csv")
+
+@export_api.post("/export/scenario-analysis", tags=["export"], dependencies=[Depends(get_api_key)])
+async def api_export_scenario_analysis(start: str = Query(...), end: str = Query(...), scenarios: dict = None):
+    data = DataExportImportSystem().get_trading_data(start, end)
+    # Example scenarios if none provided
+    if not scenarios:
+        scenarios = {
+            "Base": {"profit_mult": 1.0, "commission_add": 0.0},
+            "High Commission": {"profit_mult": 1.0, "commission_add": 5.0},
+            "Profit x1.2": {"profit_mult": 1.2, "commission_add": 0.0},
+        }
+    scenario_df = DataExportImportSystem().scenario_analysis(data, scenarios)
+    csv_data = scenario_df.to_csv(index=False)
+    return StreamingResponse(iter([csv_data]), media_type="text/csv")

@@ -18,3 +18,4 @@ coverage-badge==1.1.0
 
 # ---- Aux ----
 asyncstdlib==3.12.3   # używane w runtime helperach
+redis>=4.2.0

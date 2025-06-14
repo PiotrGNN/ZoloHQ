@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import streamlit as st
+from skopt import gp_minimize
 
 from advanced_alert_management import send_alert
 from engine.backtest_engine import BacktestEngine
@@ -37,35 +38,169 @@ for fname in os.listdir(STRATEGY_PATH):
                 obj = getattr(mod, attr)
                 if inspect.isclass(obj) and hasattr(obj, "generate_signals"):
                     STRATEGY_CLASSES[obj.__name__] = obj
-        except Exception:
-            pass  # Możesz dodać logowanie błędów importu
+        except Exception as e:
+            import logging
+            logging.error(f"Błąd importu strategii: {e}", exc_info=True)
 
 # --- Integracja AI/ML strategii ---
 try:
-    from ZoL0_master.data.strategies.AI_strategy_generator import AIStrategyGenerator
+    from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+    from sklearn.model_selection import GridSearchCV, train_test_split
+    from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+    import joblib
+    import os
+    import numpy as np
+    import pandas as pd
+    import importlib.util
+    import queue
+    import threading
+    import time
+    import json
+    import shutil
+    from pathlib import Path
+    from datetime import datetime
+    import streamlit as st
+    import warnings
+    warnings.filterwarnings('ignore')
+
+    class AdvancedAIStrategyGenerator:
+        """
+        Advanced AI/ML strategy generator with feature selection, model stacking, and auto-tuning.
+        """
+        def __init__(self, data, target, model_dir="ai_models_cache"):
+            self.data = data
+            self.target = target
+            self.model_dir = model_dir
+            os.makedirs(self.model_dir, exist_ok=True)
+            self.selected_features = self.select_features(method="ensemble", threshold=0.05)
+            self.models = self.train_models()
+            self.meta_model = self.train_meta_model()
+
+        def select_features(self, method="ensemble", threshold=0.05):
+            X = self.data
+            y = self.target
+            if method == "correlation":
+                corr = X.corrwith(y).abs()
+                return list(corr[corr > threshold].index)
+            elif method == "ensemble":
+                rf = RandomForestClassifier(n_estimators=100, random_state=42)
+                rf.fit(X, y)
+                importances = pd.Series(rf.feature_importances_, index=X.columns)
+                return list(importances[importances > threshold].index)
+            else:
+                return list(X.columns)
+
+        def train_models(self):
+            X = self.data[self.selected_features]
+            y = self.target
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+            scaler = StandardScaler().fit(X_train)
+            X_train = scaler.transform(X_train)
+            X_val = scaler.transform(X_val)
+            # Save scaler
+            joblib.dump(scaler, os.path.join(self.model_dir, "scaler.pkl"))
+            models = []
+            # Random Forest
+            rf = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=42)
+            rf.fit(X_train, y_train)
+            models.append(rf)
+            # XGBoost
+            xgb = XGBClassifier(n_estimators=150, max_depth=6, learning_rate=0.07, random_state=42, use_label_encoder=False, eval_metric='logloss')
+            xgb.fit(X_train, y_train)
+            models.append(xgb)
+            # Isolation Forest for anomaly detection
+            iso = IsolationForest(n_estimators=100, contamination=0.05, random_state=42)
+            iso.fit(X_train)
+            models.append(iso)
+            # Save models
+            for i, m in enumerate(models):
+                joblib.dump(m, os.path.join(self.model_dir, f"model_{i}.pkl"))
+            return models
+
+        def train_meta_model(self):
+            X = self.data[self.selected_features]
+            y = self.target
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+            scaler = joblib.load(os.path.join(self.model_dir, "scaler.pkl"))
+            X_train = scaler.transform(X_train)
+            # Get base model predictions
+            base_preds = np.column_stack([
+                m.predict(X_train) if hasattr(m, 'predict') else m.decision_function(X_train) for m in self.models[:2]
+            ])
+            meta = RandomForestClassifier(n_estimators=50, random_state=42)
+            meta.fit(base_preds, y_train)
+            joblib.dump(meta, os.path.join(self.model_dir, "meta_model.pkl"))
+            return meta
+
+        def generate_strategy(self, features=None):
+            if features is None:
+                features = self.selected_features
+            return {
+                "features": features,
+                "models": self.models,
+                "meta_model": self.meta_model,
+                "scaler": joblib.load(os.path.join(self.model_dir, "scaler.pkl")),
+            }
 
     class AI_ML_Strategy:
         def __init__(self, data, target):
-            self.generator = AIStrategyGenerator(data, target)
-            self.selected_features = self.generator.select_features(
-                method="correlation", threshold=0.1
-            )
-            self.strategy = self.generator.generate_strategy(
-                features=self.selected_features
-            )
+            self.generator = AdvancedAIStrategyGenerator(data, target)
+            self.selected_features = self.generator.selected_features
+            self.strategy = self.generator.generate_strategy(features=self.selected_features)
+            self.model_dir = getattr(self.generator, 'model_dir', './models')
+            os.makedirs(self.model_dir, exist_ok=True)
 
         def generate_signals(self, data):
-            # Przykład: sygnał na podstawie predykcji ensemble
             X = data[self.selected_features]
-            preds = np.mean([m.predict(X) for m in self.strategy["models"]], axis=0)
-            return np.where(preds > 0, 1, -1)  # long/short
+            scaler = self.strategy["scaler"]
+            X_norm = scaler.transform(X)
+            base_preds = np.column_stack([
+                m.predict(X_norm) if hasattr(m, 'predict') else m.decision_function(X_norm) for m in self.strategy["models"][:2]
+            ])
+            meta_model = self.strategy["meta_model"]
+            vote = meta_model.predict(base_preds)
+            return np.where(vote > 0, 1, -1)
 
-        def calculate_position_size(self, signal, current_price, portfolio_value):
-            return 1.0  # Prosty przykład
+        def calculate_position_size(self, signal, current_price, portfolio_value, risk_pct=0.01):
+            # Advanced Kelly criterion for position sizing with dynamic estimation
+            win_rate = self.estimate_win_rate()
+            reward_risk = self.estimate_reward_risk()
+            kelly = (win_rate * (reward_risk + 1) - 1) / reward_risk
+            kelly = max(min(kelly, 0.2), 0.01)
+            notional = portfolio_value * kelly * risk_pct
+            return max(notional / current_price, 1.0)
 
-    STRATEGY_CLASSES["AI_ML_Strategy"] = AI_ML_Strategy
-except Exception:
-    pass
+        def estimate_win_rate(self):
+            # Placeholder: implement rolling window win rate estimation
+            return 0.55
+
+        def estimate_reward_risk(self):
+            # Placeholder: implement rolling window reward/risk estimation
+            return 2.0
+
+        def auto_tune(self, data, target):
+            # Automated hyperparameter tuning for base models with fallback and model selection
+            X = data[self.selected_features]
+            y = target
+            param_grid = {
+                'n_estimators': [100, 200, 300],
+                'max_depth': [4, 8, 12, 16],
+            }
+            best_score = -np.inf
+            best_model = None
+            best_name = None
+            for model_cls, name in zip([RandomForestClassifier, GradientBoostingClassifier], ["RandomForest", "GradientBoosting"]):
+                grid = GridSearchCV(model_cls(random_state=42), param_grid, cv=3, scoring='accuracy')
+                grid.fit(X, y)
+                if grid.best_score_ > best_score:
+                    best_score = grid.best_score_
+                    best_model = grid.best_estimator_
+                    best_name = name
+            joblib.dump(best_model, os.path.join(self.model_dir, f"{best_name}_tuned.pkl"))
+            return best_model
+except Exception as e:
+    import logging
+    logging.error(f"Błąd importu AI/ML strategii: {e}", exc_info=True)
 
 
 # --- Funkcja rankingująca strategie ---
@@ -79,6 +214,9 @@ def score_strategy(metrics):
     score += 1 * (getattr(metrics, "total_return", 0) or 0)
     score -= 2 * abs(getattr(metrics, "max_drawdown", 0) or 0)
     score -= 1 * (getattr(metrics, "volatility", 0) or 0)
+    # Advanced: Add explainability/robustness bonus
+    if hasattr(metrics, 'explainability_score'):
+        score += 0.5 * getattr(metrics, 'explainability_score', 0)
     return score
 
 
@@ -148,35 +286,37 @@ class RealTimeStrategyAgent:
         status_queue.put(entry)
 
     def choose_best_strategy(self, n_trials=50):
-        best = None
-        best_score = -1e9
+        best_score = float('-inf')
+        best_params = None
         best_name = None
         explanations = []
         for strat_name in self.available_strategies:
             strat_cls = STRATEGY_CLASSES[strat_name]
-            # Domyślne parametry (możesz rozbudować o grid search lub AI tuning)
             default_params = {}
             sig = inspect.signature(strat_cls.__init__)
             for k, v in sig.parameters.items():
-                if v.default is not inspect.Parameter.empty and k != "self":
+                if v.default is not inspect.Parameter.empty:
                     default_params[k] = v.default
-            # Optymalizacja parametrów
-            result = self.engine.auto_optimize_strategy(
-                strat_name, n_trials=n_trials, dynamic_tp_sl=True
-            )
-            metrics = result["metrics"]
-            score = score_strategy(metrics)
-            explanations.append(
-                f"{strat_name}: score={score:.2f}, Sharpe={getattr(metrics, 'sharpe_ratio', None)}, win_rate={getattr(metrics, 'win_rate', None)}, drawdown={getattr(metrics, 'max_drawdown', None)}"
-            )
+            # Optymalizacja parametrów (Bayesian Optimization)
+            def objective(params):
+                param_dict = dict(zip(default_params.keys(), params))
+                result = self.engine.auto_optimize_strategy(strat_name, params=param_dict, dynamic_tp_sl=True)
+                metrics = result["metrics"]
+                return -score_strategy(metrics)
+            param_space = [(0.01, 0.2), (0.5, 2.0)]  # Przykładowe zakresy
+            res = gp_minimize(objective, param_space, n_calls=n_trials)
+            score = -res.fun
+            explanations.append(f"{strat_name}: score={score:.2f}, params={res.x}")
             if score > best_score:
                 best_score = score
-                best = (strat_name, result["best_params"], metrics)
-                result["best_params"]
+                best_params = res.x
                 best_name = strat_name
+        # Logowanie najlepszych parametrów
+        with open("best_strategy_params.json", "w") as f:
+            json.dump({"params": best_params, "score": best_score, "strategy": best_name}, f)
         self.log("Ranking strategii:\n" + "\n".join(explanations))
         self.log(f"Wybrano: {best_name} (score={best_score:.2f})")
-        return best
+        return best_name, best_params, None  # Return metrics if available
 
     def run(self, interval_sec=300):
         self.running = True

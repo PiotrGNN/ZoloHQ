@@ -6,20 +6,12 @@ import shutil
 
 def test_cache_entry_lifecycle():
     cache = IntelligentCache(max_size_mb=1)
-    entry = CacheEntry(
-        key="testkey",
-        data={"foo": "bar"},
-        created_at=0,
-        accessed_at=0,
-        access_count=0,
-        size_bytes=10,
-        ttl=1,
-        endpoint="/api/test"
-    )
-    cache._store_entry(entry)
-    assert cache.get("testkey") is not None
-    cache.delete("testkey")
-    assert cache.get("testkey") is None
+    endpoint = "/api/test"
+    cache.set(endpoint, {"foo": "bar"})
+    assert cache.get(endpoint)[0] is not None
+    key = cache._generate_cache_key(endpoint)
+    cache.delete(key)
+    assert cache.get(endpoint)[0] is None
 
 def test_cache_expiry():
     cache = IntelligentCache(max_size_mb=1)
@@ -36,7 +28,7 @@ def test_cache_expiry():
     cache._store_entry(entry)
     import time
     time.sleep(0.02)
-    assert cache.get("expirekey") is None
+    assert cache.get("expirekey")[0] is None
 
 def test_cache_db_permission_error(tmp_path):
     db_path = tmp_path / "test_cache.db"

@@ -391,6 +391,75 @@ class ZoL0SystemMemoryTest:
 
         return recommendations
 
+    def upload_report(self, report_path: str):
+        # Monetization: SaaS memory profiling, upload to S3 or dashboard
+        # In production, integrate with S3 or SaaS endpoint
+        logger.info(f"Uploading memory report: {report_path}")
+
+    def run_tests(self):
+        logger.info("🧪 ZoL0 System Component Memory Leak Test")
+        logger.info("=" * 50)
+        tester = ZoL0SystemMemoryTest()
+        try:
+            # Set baseline
+            gc.collect()
+            baseline = tester.get_memory_info()
+            logger.info(f"Baseline memory: {baseline['rss_mb']:.2f} MB")
+            # Run component tests
+            tester.test_api_system()
+            tester.test_data_management()
+            tester.test_core_trading_system()
+            tester.test_monitoring_systems()
+            tester.test_dashboard_systems()
+            # Run continuous test
+            logger.info("\n🔄 Running continuous system test...")
+            tester.run_continuous_system_test(30)
+            # Generate report
+            report = tester.generate_system_report()
+
+            # Save report
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            report_file = f"zol0_system_memory_test_{timestamp}.json"
+
+            with open(report_file, "w") as f:
+                json.dump(report, f, indent=2)
+
+            # Display results
+            logger.info(f"\n🏥 SYSTEM MEMORY HEALTH: {report['system_health']}")
+            logger.info(
+                f"📈 Total Memory Growth: {report['total_memory_growth_mb']:.2f} MB"
+            )
+            logger.info(f"📦 Total Object Growth: {report['total_object_growth']:,}")
+
+            logger.info("\n📊 Component Test Results:")
+            for result in report["test_results"]:
+                test_name = result.get("test", "Unknown")
+                memory_growth = result.get("memory_growth_mb", 0)
+                logger.info(f"   • {test_name}: {memory_growth:+.2f} MB")
+
+            logger.info("\n💡 Recommendations:")
+            for rec in report["recommendations"]:
+                logger.info(f"   {rec}")
+
+            logger.info(f"\n📄 Detailed report saved: {report_file}")
+
+            # After tests, upload report for automation/monetization
+            report_path = "memory_test_report.json"
+            with open(report_path, "w") as f:
+                json.dump(self.test_results, f, indent=2)
+            self.upload_report(report_path)
+            return self.test_results
+
+        except KeyboardInterrupt:
+            logger.info("\n⏹️ Test interrupted by user")
+        except Exception as e:
+            logger.error(f"\n❌ Error during testing: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+        finally:
+            tracemalloc.stop()
+
 
 def main():
     """Main execution function"""
@@ -452,4 +521,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    tester = ZoL0SystemMemoryTest()
+    results = tester.run_tests()
+    print(json.dumps(results, indent=2))

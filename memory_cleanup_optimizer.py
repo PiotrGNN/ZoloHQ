@@ -4,8 +4,11 @@ Memory Cleanup Optimizer for ZoL0 System
 Implements memory leak fixes and optimization strategies
 """
 
+import csv
 import gc
+import io
 import logging
+import sys
 import weakref
 from datetime import datetime, timedelta
 from typing import Any, Dict
@@ -14,10 +17,74 @@ import pandas as pd
 import plotly.graph_objects as go
 import psutil
 import streamlit as st
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi.security.api_key import APIKeyHeader
+from pydantic import BaseModel, Field
+from starlette_exporter import PrometheusMiddleware, handle_metrics
+import uvicorn
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+API_KEYS = {
+    "admin-key": "admin",
+    "memory-key": "memory",
+    "partner-key": "partner",
+    "premium-key": "premium",
+}
+API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=False)
+
+# --- Monetization & SaaS Hooks ---
+PREMIUM_API_KEYS = {"premium-key", "partner-key"}
+PARTNER_WEBHOOKS = {"partner-key": "https://partner.example.com/webhook"}
+
+
+def get_api_key(api_key: str = Depends(API_KEY_HEADER)):
+    if api_key not in API_KEYS:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return API_KEYS[api_key]
+
+
+# --- FastAPI async API ---
+mem_api = FastAPI(title="ZoL0 Memory Cleanup Optimizer API", version="2.0")
+mem_api.add_middleware(PrometheusMiddleware)
+mem_api.add_route("/metrics", handle_metrics)
+
+
+# --- Monetization: Usage metering and billing endpoint ---
+@mem_api.get("/api/usage", dependencies=[Depends(get_api_key)])
+async def api_usage(role: str = Depends(get_api_key)):
+    # Example: Return usage stats for billing/monetization
+    # In production, integrate with billing/analytics backend
+    return {
+        "role": role,
+        "memory_usage_mb": memory_optimizer.check_memory_usage().get("memory_mb", 0),
+        "cleanups": getattr(st.session_state, "cleanup_counter", 0),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+# --- Monetization: Premium memory optimization endpoint ---
+@mem_api.post("/api/premium/optimize", dependencies=[Depends(get_api_key)])
+async def api_premium_optimize(role: str = Depends(get_api_key)):
+    # Only allow premium/partner keys
+    if role not in PREMIUM_API_KEYS:
+        raise HTTPException(status_code=403, detail="Premium access required")
+    memory_optimizer.cleanup_session_state()
+    memory_optimizer.cleanup_large_objects()
+    memory_optimizer.force_garbage_collection()
+    st.cache_data.clear()
+    return {"status": "premium optimization complete"}
+
+
+# --- SaaS/Partner webhook endpoint ---
+@mem_api.post("/api/partner/webhook", dependencies=[Depends(get_api_key)])
+async def api_partner_webhook(payload: dict, role: str = Depends(get_api_key)):
+    # In production, process partner webhook payload
+    logger.info(f"Received partner webhook: {payload}")
+    return {"status": "received", "payload": payload}
 
 
 class MemoryOptimizer:
@@ -241,6 +308,14 @@ class MemoryOptimizer:
                     st.cache_data.clear()
                     st.rerun()
 
+    def upload_report(self, report_path: str, api_key: str):
+        # Monetization: SaaS memory profiling, upload to S3 or dashboard
+        # In production, integrate with S3 or SaaS endpoint
+        logger.info(f"Uploading memory report: {report_path} for {api_key}")
+        if api_key in PARTNER_WEBHOOKS:
+            # In production, send to partner webhook
+            pass
+
 
 # Global optimizer instance
 memory_optimizer = MemoryOptimizer()
@@ -280,22 +355,159 @@ def memory_safe_session_state(key: str, default_value: Any = None):
     return st.session_state[key]
 
 
+# --- Pydantic Models ---
+class MemoryQuery(BaseModel):
+    pass
+
+
+class BatchMemoryQuery(BaseModel):
+    queries: list[MemoryQuery]
+
+
+# --- Endpoints ---
+@mem_api.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "service": "ZoL0 Memory Cleanup Optimizer API",
+        "version": "2.0",
+    }
+
+
+@mem_api.get("/api/health")
+async def api_health():
+    return {
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "service": "ZoL0 Memory Cleanup Optimizer API",
+        "version": "2.0",
+    }
+
+
+@mem_api.get(
+    "/api/memory/status", dependencies=[Depends(get_api_key)]
+)
+async def api_memory_status(role: str = Depends(get_api_key)):
+    return memory_optimizer.check_memory_usage()
+
+
+@mem_api.post(
+    "/api/memory/optimize", dependencies=[Depends(get_api_key)]
+)
+async def api_memory_optimize(role: str = Depends(get_api_key)):
+    memory_optimizer.cleanup_session_state()
+    memory_optimizer.cleanup_large_objects()
+    memory_optimizer.force_garbage_collection()
+    return memory_optimizer.check_memory_usage()
+
+
+@mem_api.post(
+    "/api/memory/batch", dependencies=[Depends(get_api_key)]
+)
+async def api_memory_batch(req: BatchMemoryQuery, role: str = Depends(get_api_key)):
+    return {"results": [memory_optimizer.check_memory_usage() for _ in req.queries]}
+
+
+@mem_api.get(
+    "/api/export/csv", dependencies=[Depends(get_api_key)]
+)
+async def api_export_csv(role: str = Depends(get_api_key)):
+    mem = memory_optimizer.check_memory_usage()
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(mem.keys()))
+    writer.writeheader()
+    writer.writerow(mem)
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+
+
+@mem_api.get(
+    "/api/export/prometheus", dependencies=[Depends(get_api_key)]
+)
+async def api_export_prometheus(role: str = Depends(get_api_key)):
+    mem = memory_optimizer.check_memory_usage()
+    return PlainTextResponse(
+        f"# HELP memory_usage_mb Memory usage in MB\nmemory_usage_mb {mem.get('memory_mb', 0)}",
+        media_type="text/plain",
+    )
+
+
+@mem_api.get(
+    "/api/report", dependencies=[Depends(get_api_key)]
+)
+async def api_report(role: str = Depends(get_api_key)):
+    return {"status": "report generated (stub)"}
+
+
+@mem_api.get(
+    "/api/recommendations", dependencies=[Depends(get_api_key)]
+)
+async def api_recommendations(role: str = Depends(get_api_key)):
+    mem = memory_optimizer.check_memory_usage()
+    recs = []
+    if mem.get("is_critical"):
+        recs.append("Reduce data size, clear cache, or restart dashboard.")
+    if mem.get("memory_mb", 0) > 400:
+        recs.append("Consider scaling infrastructure or optimizing code.")
+    return {"recommendations": recs}
+
+
+@mem_api.get(
+    "/api/premium/score", dependencies=[Depends(get_api_key)]
+)
+async def api_premium_score(role: str = Depends(get_api_key)):
+    mem = memory_optimizer.check_memory_usage()
+    score = max(0, 1000 - mem.get("memory_mb", 0) * 2)
+    return {"score": score}
+
+
+@mem_api.get(
+    "/api/saas/tenant/{tenant_id}/report", dependencies=[Depends(get_api_key)]
+)
+async def api_saas_tenant_report(tenant_id: str, role: str = Depends(get_api_key)):
+    mem = memory_optimizer.check_memory_usage()
+    return {"tenant_id": tenant_id, "report": mem}
+
+
+@mem_api.get(
+    "/api/partner/webhook", dependencies=[Depends(get_api_key)]
+)
+async def api_partner_webhook(payload: dict, role: str = Depends(get_api_key)):
+    return {"status": "received", "payload": payload}
+
+
+@mem_api.get("/api/test/edge-case")
+async def api_edge_case():
+    try:
+        raise RuntimeError("Simulated memory optimizer edge-case error")
+    except Exception as e:
+        return {"edge_case": str(e)}
+
+
+@mem_api.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+# --- CI/CD test suite ---
+import unittest
+
+
+class TestMemoryOptimizerAPI(unittest.TestCase):
+    def test_status(self):
+        result = memory_optimizer.check_memory_usage()
+        assert "memory_mb" in result
+
+    def test_optimization(self):
+        memory_optimizer.force_garbage_collection()
+        result = memory_optimizer.check_memory_usage()
+        assert "memory_mb" in result
+
+
 if __name__ == "__main__":
-    print("Memory Cleanup Optimizer for ZoL0 System")
-    print("=========================================")
-
-    # Test memory optimization
-    optimizer = MemoryOptimizer()
-    memory_info = optimizer.check_memory_usage()
-
-    print(f"Current Memory Usage: {memory_info['memory_mb']:.1f} MB")
-    print(f"Memory Percentage: {memory_info['memory_percent']:.1f}%")
-    print(f"Critical Status: {'YES' if memory_info['is_critical'] else 'NO'}")
-
-    if memory_info["is_critical"]:
-        print("\n🚨 Performing emergency cleanup...")
-        optimizer.force_garbage_collection()
-
-        # Re-check after cleanup
-        new_memory_info = optimizer.check_memory_usage()
-        print(f"After Cleanup: {new_memory_info['memory_mb']:.1f} MB")
+    if "streamlit" in sys.argv[0]:
+        # Only run Streamlit UI if explicitly called
+        pass
+    elif "test" in sys.argv:
+        unittest.main(argv=[sys.argv[0]])
+    else:
+        uvicorn.run("memory_cleanup_optimizer:mem_api", host="0.0.0.0", port=8505, reload=True)
