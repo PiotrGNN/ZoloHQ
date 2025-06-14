@@ -1,0 +1,12 @@
+# requirements-main.txt
+sentry-sdk==2.30.0
+urllib3>=1.26.11
+flask
+ta-lib
+hypothesis
+structlog
+numba
+river
+numpy
+pandas
+# Dodaj inne zależności wymagane przez pozostałe serwisy

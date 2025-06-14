@@ -13,6 +13,9 @@ import warnings
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
+
+load_dotenv()
 
 warnings.filterwarnings("ignore", message="Expected None, but*")
 
@@ -130,10 +133,11 @@ def test_production_config():
             print(f"❌ {config_file}: Missing")
             all_good = False
     bybit_api_key = os.getenv("BYBIT_API_KEY")
+    bybit_api_secret = os.getenv("BYBIT_API_SECRET")
     bybit_production = os.getenv("BYBIT_PRODUCTION_ENABLED")
     trading_mode = os.getenv("TRADING_MODE")
-    if not bybit_api_key:
-        pytest.skip("BYBIT_API_KEY: Missing, skipping production config test.")
+    if not bybit_api_key or not bybit_api_secret:
+        pytest.skip("BYBIT_API_KEY or BYBIT_API_SECRET not set in environment.")
     if bybit_production != "true":
         print(f"⚠️ BYBIT_PRODUCTION_ENABLED: {bybit_production}")
     if trading_mode != "production":

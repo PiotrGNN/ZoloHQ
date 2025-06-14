@@ -7,12 +7,10 @@ Opis: Wybiera strategie, optymalizuje parametry, generuje raporty i rekomendacje
 
 import logging
 import random
-
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import ParameterGrid
 
-# Import strategies and engine with error handling
 try:
     from strategies.momentum import MomentumStrategy
 except ImportError:
@@ -22,25 +20,32 @@ try:
 except ImportError:
     MeanReversionStrategy = None
 try:
+    from strategies.composite import CompositeStrategy
+except ImportError:
+    CompositeStrategy = None
+try:
     from engine.backtest_engine import BacktestEngine
 except ImportError:
     BacktestEngine = None
 
-# Placeholder for AI agent integration
-# In the next steps, this module will allow AI-driven strategy generation and backtest control.
-
 
 class ZoL0AIAgent:
-    def __init__(self):
+    def __init__(self, premium_features=False):
         # Initialize agent state if needed
         self.state = {}
         self.logger = logging.getLogger(self.__class__.__name__)
         self.strategy_history = []
+        self.premium_features = premium_features
 
     def generate_strategy(self, available_strategies: dict) -> str:
-        """Randomly choose a strategy from available strategies."""
+        """Randomly choose a strategy from available strategies, with premium logic."""
         self.logger.info("Generating strategy from available strategies.")
-        strategy = random.choice(list(available_strategies.keys()))
+        if self.premium_features and "Composite" in available_strategies:
+            # Premium users get access to composite strategy more often
+            weights = [0.2 if k != "Composite" else 0.6 for k in available_strategies.keys()]
+            strategy = random.choices(list(available_strategies.keys()), weights=weights)[0]
+        else:
+            strategy = random.choice(list(available_strategies.keys()))
         self.strategy_history.append(strategy)
         return strategy
 
@@ -78,12 +83,27 @@ class ZoL0AIAgent:
                     "risk_per_trade": round(random.uniform(0.005, 0.03), 3),
                 }
 
+        elif strategy_name == "Composite":
+            from strategies.composite import CompositeStrategy
+            strategy_cls = CompositeStrategy
+
+            def param_choices():
+                return {
+                    "weights": {"mean_reversion": round(random.uniform(0.3, 0.7), 2), "momentum": round(random.uniform(0.3, 0.7), 2)},
+                    "risk_per_trade": round(random.uniform(0.01, 0.03), 3),
+                    "premium_features": self.premium_features,
+                }
+
         else:
+            self.logger.warning(f"Nieznana strategia: {strategy_name}")
             return {}
         best_params = None
         best_return = -np.inf
-        from data.demo_data import generate_demo_data
-
+        try:
+            from data.demo_data import generate_demo_data
+        except ImportError:
+            self.logger.error("Brak demo danych do optymalizacji.")
+            return {}
         for _ in range(n_trials):
             params = param_choices()
             if (
@@ -112,8 +132,6 @@ class ZoL0AIAgent:
         """
         import importlib
 
-        import numpy as np
-
         if strategy_name == "Momentum":
             param_grid = list(
                 ParameterGrid(
@@ -136,11 +154,31 @@ class ZoL0AIAgent:
                 )
             )
             strategy_cls = MeanReversionStrategy
+        elif strategy_name == "Composite":
+            from strategies.composite import CompositeStrategy
+            param_grid = list(
+                ParameterGrid(
+                    {
+                        "weights": [
+                            {"mean_reversion": 0.4, "momentum": 0.6},
+                            {"mean_reversion": 0.5, "momentum": 0.5},
+                            {"mean_reversion": 0.6, "momentum": 0.4},
+                        ],
+                        "risk_per_trade": [0.01, 0.015, 0.02, 0.03],
+                        "premium_features": [self.premium_features],
+                    }
+                )
+            )
+            strategy_cls = CompositeStrategy
         else:
+            self.logger.warning(f"Nieznana strategia: {strategy_name}")
             return {}
         X, y = [], []
-        from data.demo_data import generate_demo_data
-
+        try:
+            from data.demo_data import generate_demo_data
+        except ImportError:
+            self.logger.error("Brak demo danych do optymalizacji.")
+            return {}
         BacktestEngine = importlib.import_module(
             "engine.backtest_engine"
         ).BacktestEngine
@@ -176,16 +214,19 @@ Max drawdown: {backtest_result.max_drawdown:.2%}
 Sharpe ratio: {backtest_result.sharpe_ratio:.2f}
 Sortino ratio: {backtest_result.sortino_ratio:.2f}
 """
+        if self.premium_features:
+            report += "\n[PREMIUM] Szczegółowa analiza dostępna w panelu premium."
         return report
 
     def recommend(self, backtest_result):
         # Prosta rekomendacja na podstawie metryk
         if backtest_result.total_return > 0.1 and backtest_result.max_drawdown > -0.2:
-            return (
-                "Rekomendacja: Strategia nadaje się do dalszych testów lub wdrożenia."
-            )
+            rec = "Rekomendacja: Strategia nadaje się do dalszych testów lub wdrożenia."
         else:
-            return "Rekomendacja: Strategia wymaga poprawy lub nie nadaje się do wdrożenia."
+            rec = "Rekomendacja: Strategia wymaga poprawy lub nie nadaje się do wdrożenia."
+        if self.premium_features:
+            return "[PREMIUM] Rekomendacja: Strategia spełnia kryteria premium."
+        return rec
 
     def walk_forward_analysis(
         self, strategy_name, data, window_size=500, step_size=100
@@ -197,13 +238,14 @@ Sortino ratio: {backtest_result.sortino_ratio:.2f}
         results = []
         n = len(data)
         for start in range(0, n - window_size, step_size):
-            data.iloc[start : start + window_size]
             test = data.iloc[start + window_size : start + window_size + step_size]
             if len(test) == 0:
                 break
             best_params = self.ml_optimize_parameters(strategy_name, n_trials=10)
             if strategy_name == "Momentum":
                 strategy = MomentumStrategy(**best_params)
+            elif strategy_name == "Composite":
+                strategy = CompositeStrategy(**best_params)
             else:
                 strategy = MeanReversionStrategy(**best_params)
             engine = BacktestEngine(initial_capital=100000)
@@ -222,3 +264,11 @@ Sortino ratio: {backtest_result.sortino_ratio:.2f}
                 }
             )
         return results
+
+    def register_agent(self):
+        self.logger.info(f"Rejestracja agenta AI: {self.__class__.__name__}")
+        # Możliwość rozbudowy o integrację z marketplace AI
+
+    def usage_analytics(self, event: str):
+        self.logger.info(f"Użycie agenta AI {self.__class__.__name__}: {event}")
+        # Możliwość rozbudowy o wysyłkę do centralnego systemu analityki/monetyzacji

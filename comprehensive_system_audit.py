@@ -8,532 +8,287 @@ Kompleksowy audyt systemu tradingowego - sprawdza czy wszystkie komponenty używ
 import json
 import logging
 import os
-import sys
-import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-# Globalne ignorowanie ostrzeżeń
-warnings.filterwarnings("ignore")
+import aiofiles
+from fastapi import FastAPI, Query, Depends, HTTPException, status
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security.api_key import APIKeyHeader
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+import csv
+import io
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+import structlog
+from pydantic import BaseModel, Field
 
-# Konfiguracja logowania
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+API_KEY = os.environ.get("SYSTEM_AUDIT_API_KEY", "demo-key")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def get_api_key(api_key: Optional[str] = Depends(api_key_header)):
+    if api_key != API_KEY:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API Key")
+    return api_key
+
+AUDIT_REQUESTS = Counter(
+    "system_audit_requests_total", "Total system audit API requests", ["endpoint"]
 )
-logger = logging.getLogger(__name__)
+AUDIT_LATENCY = Histogram(
+    "system_audit_latency_seconds", "System audit endpoint latency", ["endpoint"]
+)
 
-# Załaduj zmienne środowiskowe
-try:
-    from dotenv import load_dotenv
+app = FastAPI(title="Comprehensive System Audit API", version="2.0-modernized")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    load_dotenv()
-    logger.info("✅ Zmienne środowiskowe załadowane z .env")
-except ImportError:
-    logger.warning("⚠️ python-dotenv nie jest dostępny, używam zmiennych systemowych")
-except Exception as e:
-    logger.error(f"⚠️ Błąd ładowania .env: {e}")
+# --- OpenTelemetry distributed tracing setup (idempotent) ---
+if not hasattr(logging, "_otel_initialized_system_audit"):
+    resource = Resource.create({"service.name": "comprehensive-system-audit-api"})
+    provider = TracerProvider(resource=resource)
+    processor = BatchSpanProcessor(OTLPSpanExporter())
+    provider.add_span_processor(processor)
+    trace.set_tracer_provider(provider)
+    logging._otel_initialized_system_audit = True
+tracer = trace.get_tracer("comprehensive-system-audit-api")
 
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer()
+    ]
+)
+logger = structlog.get_logger("system_audit_api")
 
-class SystemAuditor:
-    """Audytor systemu tradingowego"""
+class ErrorResponse(BaseModel):
+    detail: str
+    code: int = Field(..., example=500)
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error("unhandled_exception", error=str(exc))
+    with tracer.start_as_current_span("unhandled_exception"):
+        return JSONResponse(status_code=500, content={"detail": str(exc), "code": 500})
+
+# --- Import and wrap legacy audit logic ---
+from comprehensive_system_audit import SystemAuditor, run_ci_cd_tests
+
+def run_audit_method(method_name: str) -> Dict[str, Any]:
+    with tracer.start_as_current_span("run_audit_method"):
+        auditor = SystemAuditor()
+        method = getattr(auditor, method_name, None)
+        if not method:
+            raise ValueError(f"No such audit method: {method_name}")
+        return method()
+
+# === AI/ML Model Integration ===
+from ai.models.AnomalyDetector import AnomalyDetector
+from ai.models.SentimentAnalyzer import SentimentAnalyzer
+from ai.models.ModelRecognizer import ModelRecognizer
+from ai.models.ModelManager import ModelManager
+from ai.models.ModelTrainer import ModelTrainer
+from ai.models.ModelTuner import ModelTuner
+from ai.models.ModelRegistry import ModelRegistry
+from ai.models.ModelTraining import ModelTraining
+
+class AuditAI:
     def __init__(self):
-        self.results = {}
-        self.errors = []
-        self.warnings = []
+        self.anomaly_detector = AnomalyDetector()
+        self.sentiment_analyzer = SentimentAnalyzer()
+        self.model_recognizer = ModelRecognizer()
+        self.model_manager = ModelManager()
+        self.model_trainer = ModelTrainer()
+        self.model_tuner = ModelTuner()
+        self.model_registry = ModelRegistry()
+        self.model_training = ModelTraining(self.model_trainer)
 
-    def audit_environment(self) -> Dict[str, Any]:
-        """Audyt konfiguracji środowiska"""
-        logger = logging.getLogger("SystemAuditor")
-        logger.info("🔍 AUDYT ŚRODOWISKA")
-        logger.info("=" * 50)
-
-        env_checks = {
-            "TRADING_MODE": os.getenv("TRADING_MODE"),
-            "BYBIT_PRODUCTION_ENABLED": os.getenv("BYBIT_PRODUCTION_ENABLED"),
-            "BYBIT_TESTNET": os.getenv("BYBIT_TESTNET"),
-            "BYBIT_API_KEY": os.getenv("BYBIT_API_KEY"),
-            "BYBIT_API_SECRET": os.getenv("BYBIT_API_SECRET"),
-        }
-
-        status = True
-        details = {}
-
-        for key, value in env_checks.items():
-            if key in ["BYBIT_API_KEY", "BYBIT_API_SECRET"]:
-                has_value = bool(value and len(value) > 0)
-                display_value = "***" if has_value else "BRAK"
-            else:
-                has_value = bool(value)
-                display_value = value or "BRAK"
-
-            result = "✅" if has_value else "❌"
-            logger.info(f"{result} {key}: {display_value}")
-            details[key] = {"value": display_value, "valid": has_value}
-
-            if not has_value:
-                status = False
-
-        # Sprawdź czy trading mode jest na production
-        if env_checks.get("TRADING_MODE") != "production":
-            status = False
-            self.errors.append("TRADING_MODE nie jest ustawiony na 'production'")
-            # Sprawdź czy Bybit production jest włączony
-        bybit_production = env_checks.get("BYBIT_PRODUCTION_ENABLED", "")
-        if bybit_production and bybit_production.lower() != "true":
-            status = False
-            self.errors.append("BYBIT_PRODUCTION_ENABLED nie jest ustawiony na 'true'")
-        elif not bybit_production:
-            status = False
-            self.errors.append("BYBIT_PRODUCTION_ENABLED nie jest zdefiniowany")
-
-        return {"status": status, "details": details}
-
-    def audit_bybit_connector(self) -> Dict[str, Any]:
-        """Audyt połączenia z Bybit"""
-        print("\n🔍 AUDYT BYBIT CONNECTOR")
-        print("=" * 50)
-
+    def detect_audit_anomalies(self, audit_results):
         try:
-            # Import connector
-            sys.path.append(str(Path(__file__).parent / "ZoL0-master"))
-            from data.execution.bybit_connector import BybitConnector
+            import numpy as np
+            X = np.array([
+                [1 if r.get('status', '').lower() == 'fail' else 0, len(str(r.get('details', '')))]
+                for r in audit_results.values()
+            ])
+            if len(X) < 5:
+                return []
+            preds = self.anomaly_detector.predict(X)
+            scores = self.anomaly_detector.confidence(X)
+            return [{"section": s, "anomaly": int(preds[i] == -1), "confidence": float(scores[i])} for i, s in enumerate(audit_results.keys())]
+        except Exception as e:
+            logger.error(f"Audit anomaly detection failed: {e}")
+            return []
 
-            # Inicjalizacja
-            api_key = os.getenv("BYBIT_API_KEY")
-            api_secret = os.getenv("BYBIT_API_SECRET")
+    def ai_audit_recommendations(self, audit_results):
+        try:
+            texts = [str(r.get('details', '')) for r in audit_results.values()]
+            sentiment = self.sentiment_analyzer.analyze(texts)
+            recs = []
+            if sentiment['compound'] > 0.5:
+                recs.append('Audit sentiment is positive. No urgent actions required.')
+            elif sentiment['compound'] < -0.5:
+                recs.append('Audit sentiment is negative. Review failing sections and compliance.')
+            # Pattern recognition on section status
+            values = [1 if r.get('status', '').lower() == 'fail' else 0 for r in audit_results.values()]
+            if values:
+                pattern = self.model_recognizer.recognize(values)
+                if pattern['confidence'] > 0.8:
+                    recs.append(f"Pattern detected: {pattern['pattern']} (confidence: {pattern['confidence']:.2f})")
+            # Anomaly detection
+            anomalies = self.detect_audit_anomalies(audit_results)
+            if any(a['anomaly'] for a in anomalies):
+                recs.append(f"{sum(a['anomaly'] for a in anomalies)} audit anomalies detected in recent results.")
+            return recs
+        except Exception as e:
+            logger.error(f"AI audit recommendations failed: {e}")
+            return []
 
-            if not api_key or not api_secret:
-                print("❌ Brak kluczy API")
-                return {"status": False, "error": "Brak kluczy API"}
+    def retrain_models(self, audit_results):
+        try:
+            import numpy as np
+            X = np.array([
+                [1 if r.get('status', '').lower() == 'fail' else 0, len(str(r.get('details', '')))]
+                for r in audit_results.values()
+            ])
+            if len(X) > 10:
+                self.anomaly_detector.fit(X)
+            return {"status": "retraining complete"}
+        except Exception as e:
+            logger.error(f"Model retraining failed: {e}")
+            return {"status": "retraining failed", "error": str(e)}
 
-            # Test połączenia
-            connector = BybitConnector(
-                api_key=api_key,
-                api_secret=api_secret,
-                use_testnet=False,  # Force production
-            )
+    def calibrate_models(self):
+        try:
+            self.anomaly_detector.calibrate(None)
+            return {"status": "calibration complete"}
+        except Exception as e:
+            logger.error(f"Model calibration failed: {e}")
+            return {"status": "calibration failed", "error": str(e)}
 
-            # Test server time
-            print("🕒 Test czasu serwera...")
-            time_result = connector.get_server_time()
-            time_ok = time_result.get("success", False)
-            print(
-                f"{'✅' if time_ok else '❌'} Czas serwera: {time_result.get('server_time', 'BŁĄD')}"
-            )
-
-            # Test wallet balance
-            print("💰 Test salda portfela...")
-            balance_result = connector.get_wallet_balance()
-            balance_ok = balance_result.get("success", False)
-            source = balance_result.get("source", "unknown")
-
-            if balance_ok:
-                print(f"✅ Saldo pobrane pomyślnie (źródło: {source})")
-
-                # Sprawdź czy to prawdziwe dane API
-                if source == "api":
-                    print("✅ UŻYWA PRAWDZIWYCH DANYCH API!")
-                elif source in ["simulation", "demo", "testnet_simulation"]:
-                    print("❌ UŻYWA SYMULOWANYCH DANYCH!")
-                    return {
-                        "status": False,
-                        "error": f"Używa symulowanych danych: {source}",
-                    }
-                else:
-                    print(f"⚠️ Nieznane źródło danych: {source}")
-
-                # Pokaż szczegóły salda
-                balances = balance_result.get("balances", {})
-                if isinstance(balances, dict) and "list" in balances:
-                    for account in balances["list"][:2]:
-                        account_type = account.get("accountType", "Unknown")
-                        total_equity = account.get("totalEquity", "0")
-                        print(f"   💰 {account_type}: {total_equity} USD")
-
-            else:
-                error = balance_result.get("error", "Nieznany błąd")
-                print(f"❌ Błąd pobierania salda: {error}")
-                return {"status": False, "error": error}
-            # Test market data
-            print("📊 Test danych rynkowych...")
-            try:
-                if hasattr(connector, "get_ohlcv"):
-                    market_result = connector.get_ohlcv("BTCUSDT", "1h", limit=5)
-                    # get_ohlcv returns a list, not a dict with success field
-                    if isinstance(market_result, list) and len(market_result) > 0:
-                        print("✅ Dane rynkowe pobrane pomyślnie")
-                    else:
-                        print("❌ Brak danych rynkowych")
-                elif hasattr(connector, "get_klines"):
-                    market_result = connector.get_klines("BTCUSDT", "1h", limit=5)
-                    # get_klines returns a list, not a dict with success field
-                    if isinstance(market_result, list) and len(market_result) > 0:
-                        print("✅ Dane rynkowe pobrane pomyślnie")
-                    else:
-                        print("❌ Brak danych rynkowych")
-                else:
-                    print("⚠️ Brak metody get_ohlcv/get_klines")
-
-            except Exception as e:
-                print(f"❌ Błąd testu danych rynkowych: {e}")
-
+    def get_model_status(self):
+        try:
             return {
-                "status": time_ok and balance_ok and source == "api",
-                "details": {
-                    "server_time": time_ok,
-                    "wallet_balance": balance_ok,
-                    "data_source": source,
-                    "using_real_data": source == "api",
-                },
+                "anomaly_detector": str(type(self.anomaly_detector.model)),
+                "sentiment_analyzer": "ok",
+                "model_recognizer": "ok",
+                "registered_models": self.model_manager.list_models(),
             }
-
         except Exception as e:
-            error_msg = f"Błąd audytu Bybit connector: {e}"
-            print(f"❌ {error_msg}")
-            logger.exception("Szczegóły błędu:")
-            return {"status": False, "error": error_msg}
+            return {"error": str(e)}
 
-    def audit_production_manager(self) -> Dict[str, Any]:
-        """Audyt Production Data Manager"""
-        print("\n🔍 AUDYT PRODUCTION DATA MANAGER")
-        print("=" * 50)
+audit_ai = AuditAI()
 
-        try:
-            from production_data_manager import ProductionDataManager
+# --- AI/ML Model Hooks for Audit Analytics ---
+def ai_audit_analytics(audit_results):
+    anomalies = audit_ai.detect_audit_anomalies(audit_results)
+    recs = audit_ai.ai_audit_recommendations(audit_results)
+    return {"anomalies": anomalies, "recommendations": recs}
 
-            manager = ProductionDataManager()
+def retrain_audit_models(audit_results):
+    return audit_ai.retrain_models(audit_results)
 
-            # Sprawdź konfigurację
-            is_production = manager.is_production
-            has_credentials = bool(manager.api_key and manager.api_secret)
+def calibrate_audit_models():
+    return audit_ai.calibrate_models()
 
-            print(
-                f"{'✅' if is_production else '❌'} Tryb produkcyjny: {is_production}"
-            )
-            print(
-                f"{'✅' if has_credentials else '❌'} Poświadczenia API: {'Tak' if has_credentials else 'Nie'}"
-            )
+def get_audit_model_status():
+    return audit_ai.get_model_status()
 
-            # Sprawdź status połączenia
-            connection_status = manager.connection_status
-            bybit_connected = connection_status.get("bybit", {}).get("connected", False)
-            print(
-                f"{'✅' if bybit_connected else '❌'} Połączenie Bybit: {'Połączony' if bybit_connected else 'Rozłączony'}"
-            )
+# --- API Endpoints ---
+@app.get("/health", tags=["health"])
+async def health():
+    return {"status": "ok", "ts": datetime.now().isoformat()}
 
-            # Test pobierania danych
-            try:
-                print("📊 Test pobierania danych rynkowych...")
-                market_data = manager.get_market_data("BTCUSDT")
-                if market_data:
-                    source = market_data.get("source", "unknown")
-                    price = market_data.get("price", "N/A")
-                    print(f"✅ Dane pobrane (źródło: {source}, cena: {price})")
+@app.get("/metrics", tags=["monitoring"])
+def metrics():
+    return StreamingResponse(io.BytesIO(generate_latest()), media_type=CONTENT_TYPE_LATEST)
 
-                    real_data = source not in ["simulation", "demo", "fallback"]
-                    return {
-                        "status": is_production
-                        and has_credentials
-                        and bybit_connected
-                        and real_data,
-                        "details": {
-                            "production_mode": is_production,
-                            "has_credentials": has_credentials,
-                            "connected": bybit_connected,
-                            "data_source": source,
-                            "using_real_data": real_data,
-                        },
-                    }
-                else:
-                    print("❌ Nie udało się pobrać danych rynkowych")
-                    return {"status": False, "error": "Brak danych rynkowych"}
-
-            except Exception as e:
-                print(f"❌ Błąd pobierania danych: {e}")
-                return {"status": False, "error": str(e)}
-
-        except Exception as e:
-            error_msg = f"Błąd audytu Production Manager: {e}"
-            print(f"❌ {error_msg}")
-            return {"status": False, "error": error_msg}
-
-    def audit_configuration_files(self) -> Dict[str, Any]:
-        """Audyt plików konfiguracyjnych"""
-        print("\n🔍 AUDYT PLIKÓW KONFIGURACYJNYCH")
-        print("=" * 50)
-
-        config_files = ["production_api_config.json", "production_config.json", ".env"]
-
-        status = True
-        details = {}
-
-        for config_file in config_files:
-            file_path = Path(config_file)
-            if file_path.exists():
-                print(f"✅ {config_file}: Istnieje")
-
-                try:
-                    if config_file.endswith(".json"):
-                        with open(file_path, "r") as f:
-                            config = json.load(f)
-
-                        # Sprawdź konfigurację production/testnet
-                        if config_file == "production_api_config.json":
-                            # Sprawdź czy ma sekcję production z prawidłowym URL
-                            production_section = (
-                                config.get("api_configuration", {})
-                                .get("bybit", {})
-                                .get("production", {})
-                            )
-                            if (
-                                production_section.get("base_url")
-                                == "https://api.bybit.com"
-                            ):
-                                print("   ✅ Zawiera poprawną production URL")
-                                details[config_file] = {
-                                    "status": True,
-                                    "type": "production",
-                                }
-                            else:
-                                print("   ❌ Brak poprawnej production URL")
-                                details[config_file] = {
-                                    "status": False,
-                                    "type": "invalid",
-                                }
-                                status = False
-                        elif config_file == "production_config.json":
-                            # Sprawdź czy jest ustawiony na production
-                            if (
-                                config.get("environment") == "production"
-                                and config.get("bybit_production_enabled") is True
-                            ):
-                                print("   ✅ Konfiguracja production")
-                                details[config_file] = {
-                                    "status": True,
-                                    "type": "production",
-                                }
-                            else:
-                                print("   ❌ Nie jest skonfigurowany na production")
-                                details[config_file] = {
-                                    "status": False,
-                                    "type": "testnet",
-                                }
-                                status = False
-                        else:
-                            # Ogólne sprawdzenie dla innych plików JSON
-                            config_str = json.dumps(config).lower()
-                            if (
-                                "api.bybit.com" in config_str
-                                and "testnet" not in config_str
-                            ):
-                                print("   ✅ Zawiera production URLs")
-                                details[config_file] = {
-                                    "status": True,
-                                    "type": "production",
-                                }
-                            elif "testnet" in config_str:
-                                print("   ❌ Zawiera testnet URLs")
-                                details[config_file] = {
-                                    "status": False,
-                                    "type": "testnet",
-                                }
-                                status = False
-                            else:
-                                print("   ⚠️ Niejasna konfiguracja")
-                                details[config_file] = {
-                                    "status": True,
-                                    "type": "unclear",
-                                }
-
-                    elif config_file == ".env":
-                        with open(file_path, "r") as f:
-                            env_content = f.read()
-
-                        if "TRADING_MODE=production" in env_content:
-                            print("   ✅ TRADING_MODE=production")
-                        else:
-                            print("   ❌ TRADING_MODE nie jest ustawiony na production")
-                            status = False
-
-                        details[config_file] = {"status": True, "content_checked": True}
-
-                except Exception as e:
-                    print(f"   ❌ Błąd odczytu: {e}")
-                    details[config_file] = {"status": False, "error": str(e)}
-                    status = False
-            else:
-                print(f"❌ {config_file}: Nie istnieje")
-                details[config_file] = {"status": False, "error": "Plik nie istnieje"}
-
-        return {"status": status, "details": details}
-
-    def audit_dashboard_files(self) -> Dict[str, Any]:
-        """Audyt plików dashboardów"""
-        print("\n🔍 AUDYT PLIKÓW DASHBOARDÓW")
-        print("=" * 50)
-
-        dashboard_files = [
-            "unified_trading_dashboard.py",
-            "enhanced_dashboard.py",
-            "master_control_dashboard.py",
-            "advanced_trading_analytics.py",
+@app.post("/audit/run", tags=["audit"], dependencies=[Depends(get_api_key)])
+async def run_audit(audit_type: str = Query("complete")):
+    AUDIT_REQUESTS.labels(endpoint="run_audit").inc()
+    with AUDIT_LATENCY.labels(endpoint="run_audit").time():
+        valid_types = [
+            "complete",
+            "environment",
+            "bybit_connector",
+            "production_manager",
+            "configuration_files",
+            "dashboard_files",
         ]
-
-        status = True
-        details = {}
-
-        for dashboard in dashboard_files:
-            file_path = Path(dashboard)
-            if file_path.exists():
-                print(f"✅ {dashboard}: Istnieje")
-
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    # Sprawdź integrację z prawdziwymi danymi
-                    has_production_manager = (
-                        "ProductionDataManager" in content
-                        or "production_data_manager" in content
-                        or "get_production_data" in content
-                    )
-                    has_bybit_connector = (
-                        "BybitConnector" in content or "bybit_connector" in content
-                    )
-                    has_real_data_integration = any(
-                        keyword in content.lower()
-                        for keyword in [
-                            "production_data_manager",
-                            "real.*data",
-                            "api.*data",
-                            "bybit.*api",
-                            "get_production_data",
-                            "production_manager",
-                        ]
-                    )
-
-                    print(
-                        f"   {'✅' if has_production_manager else '❌'} ProductionDataManager: {'Tak' if has_production_manager else 'Nie'}"
-                    )
-                    print(
-                        f"   {'✅' if has_bybit_connector else '❌'} BybitConnector: {'Tak' if has_bybit_connector else 'Nie'}"
-                    )
-                    print(
-                        f"   {'✅' if has_real_data_integration else '❌'} Integracja prawdziwych danych: {'Tak' if has_real_data_integration else 'Nie'}"
-                    )
-
-                    file_status = (
-                        has_production_manager
-                        or has_bybit_connector
-                        or has_real_data_integration
-                    )
-                    details[dashboard] = {
-                        "status": file_status,
-                        "has_production_manager": has_production_manager,
-                        "has_bybit_connector": has_bybit_connector,
-                        "has_real_data_integration": has_real_data_integration,
-                    }
-
-                    if not file_status:
-                        status = False
-
-                except Exception as e:
-                    print(f"   ❌ Błąd analizy: {e}")
-                    details[dashboard] = {"status": False, "error": str(e)}
-                    status = False
-            else:
-                print(f"❌ {dashboard}: Nie istnieje")
-                details[dashboard] = {"status": False, "error": "Plik nie istnieje"}
-
-        return {"status": status, "details": details}
-
-    def run_complete_audit(self) -> Dict[str, Any]:
-        """Uruchom kompletny audyt systemu"""
-        print("🚀 KOMPLEKSOWY AUDYT SYSTEMU TRADINGOWEGO")
-        print("=" * 60)
-        print(f"Czas: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 60)
-
-        audit_results = {}
-
-        # Wykonaj wszystkie audyty
-        audit_results["environment"] = self.audit_environment()
-        audit_results["bybit_connector"] = self.audit_bybit_connector()
-        audit_results["production_manager"] = self.audit_production_manager()
-        audit_results["configuration_files"] = self.audit_configuration_files()
-        audit_results["dashboard_files"] = self.audit_dashboard_files()
-
-        # Podsumowanie
-        print("\n" + "=" * 60)
-        print("📋 PODSUMOWANIE AUDYTU")
-        print("=" * 60)
-
-        total_tests = len(audit_results)
-        passed_tests = sum(
-            1 for result in audit_results.values() if result.get("status", False)
-        )
-
-        for test_name, result in audit_results.items():
-            status_icon = "✅" if result.get("status", False) else "❌"
-            print(f"{status_icon} {test_name.replace('_', ' ').title()}")
-
-            if not result.get("status", False) and "error" in result:
-                print(f"   💥 Błąd: {result['error']}")
-
-        percentage = (passed_tests / total_tests) * 100
-        print(
-            f"\n📊 WYNIK: {passed_tests}/{total_tests} testów przeszło ({percentage:.1f}%)"
-        )
-
-        if percentage >= 80:
-            print("🎉 SYSTEM GOTOWY DO UŻYCIA Z PRAWDZIWYMI DANYMI!")
-        elif percentage >= 60:
-            print("⚠️ SYSTEM CZĘŚCIOWO GOTOWY - WYMAGANE POPRAWKI")
+        if audit_type not in valid_types:
+            raise HTTPException(status_code=400, detail="Invalid audit type")
+        if audit_type == "complete":
+            auditor = SystemAuditor()
+            result = auditor.run_complete_audit()
         else:
-            print("❌ SYSTEM NIE GOTOWY - WYMAGANE ZNACZNE POPRAWKI")
+            result = run_audit_method(f"audit_{audit_type}")
+        # --- Integrate AI/ML analytics ---
+        result['ai_analytics'] = ai_audit_analytics(result.get('results', {}))
+        return result
 
-        # Rekomendacje
-        if self.errors:
-            print("\n🔧 WYMAGANE NATYCHMIASTOWE POPRAWKI:")
-            for error in self.errors:
-                print(f"   • {error}")
+@app.get("/audit/export/json", tags=["export"], dependencies=[Depends(get_api_key)])
+async def export_json():
+    path = Path("comprehensive_audit_report.json")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Audit report not found")
+    async with aiofiles.open(path, "r", encoding="utf-8") as f:
+        content = await f.read()
+    return StreamingResponse(io.BytesIO(content.encode()), media_type="application/json")
 
-        if self.warnings:
-            print("\n⚠️ OSTRZEŻENIA:")
-            for warning in self.warnings:
-                print(f"   • {warning}")
+@app.get("/audit/export/csv", tags=["export"], dependencies=[Depends(get_api_key)])
+async def export_csv():
+    path = Path("comprehensive_audit_report.json")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Audit report not found")
+    async with aiofiles.open(path, "r", encoding="utf-8") as f:
+        content = await f.read()
+    report = json.loads(content)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Audit Section", "Status", "Details"])
+    for section, result in report["results"].items():
+        writer.writerow([section, result.get("status"), json.dumps(result.get("details"))])
+    buf.seek(0)
+    return StreamingResponse(io.BytesIO(buf.getvalue().encode()), media_type="text/csv")
 
-        # Zapisz raport
-        report = {
-            "timestamp": datetime.now().isoformat(),
-            "results": audit_results,
-            "summary": {
-                "total_tests": total_tests,
-                "passed_tests": passed_tests,
-                "percentage": percentage,
-                "errors": self.errors,
-                "warnings": self.warnings,
-            },
-        }
+@app.get("/ci-cd/edge-case-test", tags=["ci-cd"], dependencies=[Depends(get_api_key)])
+async def ci_cd_edge_case_test():
+    run_ci_cd_tests()
+    return {"status": "edge-case tests completed", "ts": datetime.now().isoformat()}
 
-        with open("comprehensive_audit_report.json", "w", encoding="utf-8") as f:
-            json.dump(report, f, indent=2, ensure_ascii=False)
+# --- Monetization, SaaS, Partner, Webhook, Multi-tenant endpoints (stubs for extension) ---
+@app.post("/monetize/webhook", tags=["monetization"], dependencies=[Depends(get_api_key)])
+async def monetize_webhook(
+    url: str = Query(...),
+    event: str = Query(...),
+    payload: Optional[str] = Query(None),
+):
+    import httpx
+    try:
+        async with httpx.AsyncClient(http2=True) as client:
+            resp = await client.post(url, json={"event": event, "payload": payload})
+        return {"status": resp.status_code, "response": resp.text[:100]}
+    except Exception as e:
+        return {"error": str(e)}
 
-        print("\n📄 Raport zapisany do: comprehensive_audit_report.json")
+@app.get("/monetize/partner-status", tags=["monetization"], dependencies=[Depends(get_api_key)])
+async def partner_status(partner_id: str = Query(...)):
+    return {"partner_id": partner_id, "status": "active", "quota": 1000, "used": 123}
 
-        return report
+# --- Advanced logging, analytics, and recommendations (stub) ---
+@app.get("/analytics/recommendations", tags=["analytics"], dependencies=[Depends(get_api_key)])
+async def recommendations():
+    return {
+        "recommendations": [
+            "Upgrade to premium for advanced audit automation and compliance.",
+            "Enable webhook integration for automated incident response.",
+            "Contact support for persistent audit failures.",
+        ]
+    }
 
+@app.get("/", tags=["info"])
+async def root():
+    return {"message": "Comprehensive System Audit API (modernized)", "ts": datetime.now().isoformat()}
 
-# TODO: Integrate with CI/CD pipeline for automated audit and edge-case tests.
-# Edge-case tests: simulate missing env vars, config errors, and audit failures.
-# All public methods have docstrings and exception handling.
-
-def main():
-    """Główna funkcja"""
-    auditor = SystemAuditor()
-    return auditor.run_complete_audit()
-
-
-if __name__ == "__main__":
-    main()
+# --- Run with: uvicorn comprehensive_system_audit:app --reload ---

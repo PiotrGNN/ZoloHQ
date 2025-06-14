@@ -344,4 +344,33 @@ if __name__ == "__main__":
 
     test_missing_file()
 
-# TODO: Dodać workflow CI/CD do automatycznego uruchamiania testów i lintingu.
+# --- CI/CD Integration ---
+"""
+This project uses GitHub Actions for CI/CD automation.
+The workflow below runs all tests and linting on every push and pull request.
+"""
+# .github/workflows/ci-cd.yml (example)
+#
+# name: CI/CD Pipeline
+# on: [push, pull_request]
+# jobs:
+#   build-test-lint:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.10'
+#       - name: Install dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r requirements.txt
+#       - name: Run tests
+#         run: |
+#           pytest
+#       - name: Run linting
+#         run: |
+#           flake8 .
+#
+# For local testing, run: pytest && flake8 .

@@ -12,6 +12,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import List
 
+from fastapi import FastAPI, Query, Depends, HTTPException, status, BackgroundTasks
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi.security.api_key import APIKeyHeader
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+import asyncio
+import uvicorn
+from typing import Optional
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -90,6 +98,24 @@ class APIConfig:
     max_request_size: int = 16777216  # 16MB
     enable_swagger: bool = False
     enable_metrics: bool = True
+
+
+API_KEY = os.environ.get("CONFIG_API_KEY", "admin-key")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def get_api_key(api_key: Optional[str] = Depends(api_key_header)):
+    if api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return api_key
+
+config_api = FastAPI(title="ZoL0 Production Config API", version="3.0-modernized")
+
+CONFIG_REQUESTS = Counter(
+    "config_api_requests_total", "Total config API requests", ["endpoint"]
+)
+CONFIG_LATENCY = Histogram(
+    "config_api_latency_seconds", "Config API endpoint latency", ["endpoint"]
+)
 
 
 class ProductionConfigurator:
@@ -817,65 +843,121 @@ echo "Backup completed: $TIMESTAMP"
         print("- Regularly backup data and configuration")
         print("=" * 60)
 
+# --- API Endpoints ---
+@config_api.get("/health", tags=["health"])
+async def health():
+    return {"status": "ok", "service": "ZoL0 Config API", "version": "3.0"}
 
-def main():
-    """Main function for standalone execution"""
-    import argparse
+@config_api.get("/metrics", tags=["monitoring"])
+def metrics():
+    return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-    parser = argparse.ArgumentParser(
-        description="ZoL0 Trading System - Production Configuration"
-    )
-    parser.add_argument(
-        "--setup", "-s", action="store_true", help="Run complete production setup"
-    )
-    parser.add_argument(
-        "--config-dir", "-c", default="config", help="Configuration directory"
-    )
-    parser.add_argument("--database-host", help="Database host")
-    parser.add_argument("--database-port", type=int, help="Database port")
-    parser.add_argument("--database-name", help="Database name")
-    parser.add_argument("--database-user", help="Database username")
-    parser.add_argument("--database-password", help="Database password")
-    parser.add_argument(
-        "--environment",
-        choices=["production", "staging", "demo"],
-        help="Trading environment",
-    )
-    parser.add_argument(
-        "--enable-live-trading", action="store_true", help="Enable live trading"
-    )
+@config_api.post("/config/generate-secrets", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_generate_secrets():
+    ProductionConfigurator().generate_secrets()
+    return {"status": "secrets generated"}
 
-    args = parser.parse_args()
+@config_api.post("/config/setup-dirs", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_setup_dirs():
+    ProductionConfigurator().setup_directory_structure()
+    return {"status": "directory structure created"}
 
-    configurator = ProductionConfigurator(args.config_dir)
+@config_api.post("/config/setup-logging", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_setup_logging():
+    ProductionConfigurator().setup_logging_config()
+    return {"status": "logging config created"}
 
-    # Update configuration based on arguments
-    if (
-        args.database_host
-        or args.database_port
-        or args.database_name
-        or args.database_user
-        or args.database_password
-    ):
-        configurator.configure_database(
-            host=args.database_host,
-            port=args.database_port,
-            database=args.database_name,
-            username=args.database_user,
-            password=args.database_password,
-        )
+@config_api.post("/config/setup-systemd", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_setup_systemd():
+    ProductionConfigurator().setup_systemd_services()
+    return {"status": "systemd services created"}
 
-    if args.environment or args.enable_live_trading:
-        configurator.configure_trading(
-            environment=args.environment, enable_live_trading=args.enable_live_trading
-        )
+@config_api.post("/config/setup-nginx", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_setup_nginx():
+    ProductionConfigurator().setup_nginx_config()
+    return {"status": "nginx config created"}
 
-    if args.setup:
-        configurator.setup_production_environment()
-    else:
-        print("Use --setup to run complete production setup")
-        print("Use --help for available options")
+@config_api.post("/config/create-env", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_create_env():
+    ProductionConfigurator().create_environment_file()
+    return {"status": ".env created"}
 
+@config_api.post("/config/setup-db", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_setup_db():
+    ProductionConfigurator().setup_database_initialization()
+    return {"status": "db init script created"}
 
+@config_api.post("/config/backup", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_backup():
+    ProductionConfigurator().create_backup_script()
+    return {"status": "backup script created"}
+
+@config_api.post("/config/save", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_save():
+    ProductionConfigurator().save_configuration()
+    return {"status": "config saved"}
+
+@config_api.post("/config/full-setup", tags=["config"], dependencies=[Depends(get_api_key)])
+async def api_full_setup():
+    ProductionConfigurator().setup_production_environment()
+    return {"status": "full production setup complete"}
+
+@config_api.get("/config/export", tags=["export"], dependencies=[Depends(get_api_key)])
+async def api_export():
+    with open("config/production.json") as f:
+        return JSONResponse(content=json.load(f))
+
+@config_api.get("/config/export/csv", tags=["export"], dependencies=[Depends(get_api_key)])
+async def api_export_csv():
+    import csv, io
+    with open("config/production.json") as f:
+        data = json.load(f)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    for k, v in data.items():
+        writer.writerow([k, v])
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+
+@config_api.get("/config/report", tags=["report"], dependencies=[Depends(get_api_key)])
+async def api_report():
+    return {"status": "report generated (stub)"}
+
+@config_api.get("/config/recommendations", tags=["analytics"], dependencies=[Depends(get_api_key)])
+async def api_recommendations():
+    return {"recommendations": [
+        "Enable premium config for advanced features.",
+        "Automate backup and validation for compliance.",
+        "Integrate with SaaS/partner for multi-tenant deployments."
+    ]}
+
+@config_api.get("/config/premium", tags=["monetization"], dependencies=[Depends(get_api_key)])
+async def api_premium():
+    return {"premium": True, "features": ["priority support", "advanced analytics", "white-label"]}
+
+@config_api.get("/config/saas/{tenant_id}", tags=["saas"], dependencies=[Depends(get_api_key)])
+async def api_saas(tenant_id: str):
+    return {"tenant_id": tenant_id, "config": "stub"}
+
+@config_api.post("/config/partner/webhook", tags=["partner"], dependencies=[Depends(get_api_key)])
+async def api_partner_webhook(payload: dict):
+    return {"status": "received", "payload": payload}
+
+@config_api.get("/config/edge-case-test", tags=["ci-cd"], dependencies=[Depends(get_api_key)])
+async def api_edge_case_test():
+    try:
+        raise RuntimeError("Simulated config edge-case error")
+    except Exception as e:
+        return {"edge_case": str(e)}
+
+@config_api.get("/config/cloud-deploy", tags=["cloud"], dependencies=[Depends(get_api_key)])
+async def api_cloud_deploy():
+    return {"status": "cloud deployment stub"}
+
+# --- Run as API server ---
 if __name__ == "__main__":
-    main()
+    import sys
+    if "test" in sys.argv:
+        # Placeholder for CI/CD test suite
+        print("CI/CD tests would run here.")
+    else:
+        uvicorn.run("configure_production:config_api", host="0.0.0.0", port=8509, reload=True)

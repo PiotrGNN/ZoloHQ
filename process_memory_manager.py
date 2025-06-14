@@ -206,57 +206,47 @@ class ProcessMemoryManager:
         return self.restart_dashboard_services()
 
     def monitor_and_manage(self, restart_if_critical: bool = True):
-        """Monitor memory usage and manage processes"""
-        report = self.memory_analysis_report()
+        """Monitoruje i zarządza pamięcią procesu. Restartuje proces jeśli przekroczone limity krytyczne."""
+        try:
+            import psutil, os
+            process = psutil.Process(os.getpid())
+            mem_info = process.memory_info()
+            rss_mb = mem_info.rss / (1024 * 1024)
+            if rss_mb > 1024 and restart_if_critical:
+                self._restart_process()
+                self._log_critical(f"Restart z powodu przekroczenia limitu pamięci: {rss_mb:.2f} MB")
+                return False
+            return True
+        except Exception as e:
+            self._log_critical(f"Błąd monitorowania pamięci: {e}")
+            return False
 
-        print("🧠 ZoL0 Memory Management Report")
-        print("================================")
-        print(f"Timestamp: {report['timestamp']}")
-        print(f"Total Processes: {report['total_processes']}")
-        print(f"Critical Processes: {report['critical_processes']}")
-        print(f"Total Memory: {report['total_memory_mb']:.1f} MB")
-        print(f"Critical Memory: {report['critical_memory_mb']:.1f} MB")
+    def save_report(self, report: dict, filename: str = None):
+        """Zapisuje raport pamięci do pliku JSON."""
+        import json, datetime
+        if not filename:
+            filename = f"memory_report_{datetime.datetime.now():%Y%m%d_%H%M%S}.json"
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(report, f, indent=2, ensure_ascii=False)
+            self._log_info(f"Raport pamięci zapisany: {filename}")
+            return filename
+        except Exception as e:
+            self._log_critical(f"Błąd zapisu raportu: {e}")
+            return None
 
-        print("\n📊 Process Details:")
-        print("-------------------")
-        for proc in report["processes"]:
-            status = (
-                "🚨 CRITICAL"
-                if proc["memory_mb"] > self.critical_threshold_mb
-                else (
-                    "⚠️ HIGH"
-                    if proc["memory_mb"] > self.memory_threshold_mb
-                    else "✅ OK"
-                )
-            )
-            print(
-                f"{status} {proc['script']} (PID: {proc['pid']}) - {proc['memory_mb']:.1f} MB"
-            )
+    def _restart_process(self):
+        import os, sys
+        self._log_critical("Restartuję proces...")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
-        print("\n💡 Recommendations:")
-        print("-------------------")
-        for rec in report["recommendations"]:
-            print(f"   {rec}")
+    def _log_critical(self, msg):
+        import logging
+        logging.critical(msg)
 
-        # Take action if needed
-        if restart_if_critical and report["critical_processes"] > 0:
-            print("\n🔄 Taking Action: Restarting critical processes...")
-            return self.force_memory_cleanup()
-
-        return True
-
-    def save_report(self, report: Dict[str, Any], filename: str = None):
-        """Save memory report to file"""
-        if filename is None:
-            filename = f"memory_management_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-
-        filepath = os.path.join(self.base_path, filename)
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(report, f, indent=2, default=str)
-
-        logger.info(f"Report saved to: {filepath}")
-        return filepath
+    def _log_info(self, msg):
+        import logging
+        logging.info(msg)
 
 
 if __name__ == "__main__":
@@ -279,4 +269,3 @@ if __name__ == "__main__":
     print(f"📄 Detailed report saved: {report_file}")
 
 # CI/CD: Zautomatyzowane testy edge-case i workflow wdrożone w .github/workflows/ci-cd.yml
-# (TODO usunięty po wdrożeniu automatyzacji)

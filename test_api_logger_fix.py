@@ -11,6 +11,10 @@ from pathlib import Path
 # Add ZoL0-master to path
 sys.path.append(str(Path(__file__).parent / "ZoL0-master"))
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def warn_filter_for_test(func):
     import functools
@@ -42,15 +46,19 @@ def test_advanced_analytics_api():
         # Import the modules needed
         from data.execution.bybit_connector import BybitConnector
 
-        # Test the BybitConnector directly (similar to what _get_api_data does)
-        use_testnet = not bool(
-            os.getenv("BYBIT_PRODUCTION_ENABLED", "").lower() == "true"
-        )
-
+        api_key = os.getenv("BYBIT_API_KEY")
+        api_secret = os.getenv("BYBIT_API_SECRET")
+        if "BYBIT_TESTNET" not in os.environ:
+            print("⚠️  BYBIT_TESTNET not set in environment. Defaulting to production (testnet=False).")
+        use_testnet = os.getenv("BYBIT_TESTNET", "false").lower() == "true"
+        print(f"[INFO] BybitConnector will use testnet: {use_testnet}")
+        if not api_key or not api_secret:
+            print("⚠️  BYBIT_API_KEY or BYBIT_API_SECRET not set in environment. Skipping test.")
+            return
         connector = BybitConnector(
-            api_key=os.getenv("BYBIT_API_KEY"),
-            api_secret=os.getenv("BYBIT_API_SECRET"),
-            use_testnet=use_testnet,
+            api_key=api_key,
+            api_secret=api_secret,
+            testnet=use_testnet,
         )
 
         print("✅ BybitConnector initialized")

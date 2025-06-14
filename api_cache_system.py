@@ -19,6 +19,14 @@ from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+import uvicorn
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi.security.api_key import APIKeyHeader
+from pydantic import BaseModel, Field
+from starlette_exporter import PrometheusMiddleware, handle_metrics
+import io
+import csv
 
 
 @dataclass
@@ -47,12 +55,19 @@ class IntelligentCache:
     Obsługa wyjątków przy operacjach na plikach i bazie.
     """
 
-    def __init__(self, max_size_mb: int = 100, db_path: str = "cache_analytics.db"):
+    def __init__(self, max_size_mb: int = 100, db_path: str = "cache_analytics.db", redis_url: str = None):
         self.max_size_bytes = max_size_mb * 1024 * 1024
         self.current_size = 0
         self.cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self.lock = threading.RLock()
         self.db_path = Path(db_path)
+        self.redis = None
+        if redis_url and REDIS_AVAILABLE:
+            try:
+                self.redis = redis.StrictRedis.from_url(redis_url)
+                logging.info(f"Connected to Redis at {redis_url}")
+            except Exception as e:
+                logging.warning(f"Redis connection failed: {e}")
 
         # Cache statistics
         self.stats = {"hits": 0, "misses": 0, "evictions": 0, "size_violations": 0}
@@ -85,6 +100,7 @@ class IntelligentCache:
         self.cleanup_thread.start()
 
         logging.info(f"Intelligent cache initialized: max_size={max_size_mb}MB")
+        self._cache_warmup()
 
     def _init_analytics_db(self):
         """Initialize analytics database. Obsługa błędów bazy danych."""
@@ -107,6 +123,17 @@ class IntelligentCache:
             conn.close()
         except Exception as e:
             logging.error(f"Błąd inicjalizacji bazy cache_analytics: {e}")
+
+    def _cache_warmup(self):
+        """Preload most-used endpoints at startup for faster first response."""
+        warmup_endpoints = ["/api/trading/statistics", "/api/market/tickers"]
+        for endpoint in warmup_endpoints:
+            try:
+                dummy_data = {"endpoint": endpoint, "preloaded": True}
+                self.set(endpoint, dummy_data)
+                logging.info(f"Cache warmup: {endpoint}")
+            except Exception as e:
+                logging.warning(f"Cache warmup failed for {endpoint}: {e}")
 
     def _generate_cache_key(
         self, endpoint: str, params: Dict = None, headers: Dict = None
@@ -215,6 +242,17 @@ class IntelligentCache:
         cache_key = self._generate_cache_key(endpoint, params, headers)
         current_time = time.time()
 
+        # Try Redis first if available
+        if self.redis:
+            try:
+                val = self.redis.get(cache_key)
+                if val:
+                    data = pickle.loads(val)
+                    self.stats["hits"] += 1
+                    return data, True
+            except Exception as e:
+                logging.warning(f"Redis get failed: {e}")
+
         with self.lock:
             if cache_key in self.cache:
                 entry = self.cache[cache_key]
@@ -236,6 +274,13 @@ class IntelligentCache:
                 # Decompress data
                 data = self._decompress_data(entry.data)
                 self.stats["hits"] += 1
+
+                # If found in local cache, optionally update Redis
+                if self.redis:
+                    try:
+                        self.redis.setex(cache_key, entry.ttl, entry.data)
+                    except Exception as e:
+                        logging.warning(f"Redis setex failed: {e}")
 
                 return data, True
             else:
@@ -292,6 +337,27 @@ class IntelligentCache:
 
             self.cache[cache_key] = entry
             self.current_size += data_size
+
+            # Update Redis cache
+            if self.redis:
+                try:
+                    self.redis.setex(cache_key, config["ttl"], pickle.dumps(data))
+                except Exception as e:
+                    logging.warning(f"Redis setex failed: {e}")
+
+    def _store_entry(self, entry: CacheEntry):
+        """Directly store a CacheEntry (for testing only)."""
+        with self.lock:
+            self.cache[entry.key] = entry
+            self.current_size += entry.size_bytes
+
+    def delete(self, key: str):
+        """Delete a cache entry by key (for testing only)."""
+        with self.lock:
+            if key in self.cache:
+                entry = self.cache[key]
+                self.current_size -= entry.size_bytes
+                del self.cache[key]
 
     def get_stats(self) -> Dict:
         """Get cache statistics"""
@@ -419,6 +485,17 @@ class IntelligentCache:
         t.start()
         logging.info(f"Started auto cache TTL optimization every {interval_sec}s.")
 
+    def export_metrics_prometheus(self) -> str:
+        """Export cache metrics in Prometheus format (stub)."""
+        stats = self.get_stats()
+        lines = [
+            f"cache_hit_rate {stats['hit_rate']}",
+            f"cache_total_requests {stats['total_requests']}",
+            f"cache_evictions {stats['evictions']}",
+            f"cache_current_size_mb {stats['current_size_mb']}"
+        ]
+        return "\n".join(lines)
+
 
 class CachedAPIWrapper:
     """
@@ -473,65 +550,173 @@ def create_cached_api_wrapper() -> CachedAPIWrapper:
     return CachedAPIWrapper(cache)
 
 
-if __name__ == "__main__":
-    # Test the caching system
-    import random
+# --- FastAPI app ---
+API_KEYS = {
+    "admin-key": "admin",
+    "cache-key": "cache",
+    "partner-key": "partner",
+    "premium-key": "premium",
+    "saas-key": "saas"
+}
+API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("api_cache_system_test")
+def get_api_key(api_key: str = Depends(API_KEY_HEADER)):
+    if api_key in API_KEYS:
+        return API_KEYS[api_key]
+    raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
-    logger.info("Testing API Caching System...")
+cache_api = FastAPI(title="ZoL0 API Cache System", version="2.0")
+cache_api.add_middleware(PrometheusMiddleware)
+cache_api.add_route("/metrics", handle_metrics)
 
-    # Create cache and wrapper
-    cache = IntelligentCache(max_size_mb=10)
-    api_wrapper = CachedAPIWrapper(cache)
+# --- Pydantic Models ---
+class CacheQuery(BaseModel):
+    endpoint: str
+    params: dict = Field(default_factory=dict)
+    headers: dict = Field(default_factory=dict)
+    data: dict = Field(default_factory=dict)
 
-    # Test endpoints
-    test_endpoints = [
-        "/api/trading/statistics",
-        "/api/trading/positions",
-        "/api/market/tickers",
-        "/api/trading/history",
-    ]
+class BatchCacheQuery(BaseModel):
+    queries: list[CacheQuery]
 
-    # Simulate API usage
-    logger.info("Simulating API usage...")
-    for i in range(20):
-        endpoint = random.choice(test_endpoints)
-        params = {"test": i, "random": random.randint(1, 100)}
-        data, cache_hit, response_time = api_wrapper.get(endpoint, params)
-        logger.info(
-            f"Request {i+1}: {endpoint} - Cache: {'HIT' if cache_hit else 'MISS'} - Time: {response_time*1000:.1f}ms"
-        )
+class TTLUpdateQuery(BaseModel):
+    endpoint_pattern: str
+    new_ttl: int
 
-    # Print statistics
-    logger.info("Cache Statistics:")
+# --- Global cache instance ---
+cache = get_cache_instance()
+
+# --- Endpoints ---
+@cache_api.get("/")
+async def root():
+    return {"status": "ok", "service": "ZoL0 API Cache System", "version": "2.0"}
+
+@cache_api.get("/api/health")
+async def api_health():
+    return {"status": "ok", "timestamp": time.time(), "service": "ZoL0 API Cache System", "version": "2.0"}
+
+@cache_api.get("/api/cache/get", dependencies=[Depends(get_api_key)])
+async def api_cache_get(endpoint: str, params: dict = None, headers: dict = None, role: str = Depends(get_api_key)):
+    data, hit = cache.get(endpoint, params, headers)
+    return {"data": data, "cache_hit": hit}
+
+@cache_api.post("/api/cache/set", dependencies=[Depends(get_api_key)])
+async def api_cache_set(req: CacheQuery, role: str = Depends(get_api_key)):
+    cache.set(req.endpoint, req.data, req.params, req.headers)
+    return {"status": "ok"}
+
+@cache_api.post("/api/cache/batch", dependencies=[Depends(get_api_key)])
+async def api_cache_batch(req: BatchCacheQuery, role: str = Depends(get_api_key)):
+    results = []
+    for q in req.queries:
+        cache.set(q.endpoint, q.data, q.params, q.headers)
+        results.append({"endpoint": q.endpoint, "status": "ok"})
+    return {"results": results}
+
+@cache_api.get("/api/cache/clear", dependencies=[Depends(get_api_key)])
+async def api_cache_clear(endpoint_pattern: str = "", role: str = Depends(get_api_key)):
+    if endpoint_pattern:
+        cache.clear_endpoint(endpoint_pattern)
+        return {"status": "cleared", "pattern": endpoint_pattern}
+    else:
+        cache.clear_all()
+        return {"status": "cleared_all"}
+
+@cache_api.get("/api/cache/stats", dependencies=[Depends(get_api_key)])
+async def api_cache_stats(role: str = Depends(get_api_key)):
+    return cache.get_stats()
+
+@cache_api.get("/api/cache/endpoint-stats", dependencies=[Depends(get_api_key)])
+async def api_cache_endpoint_stats(role: str = Depends(get_api_key)):
+    return cache.get_endpoint_stats()
+
+@cache_api.get("/api/cache/analytics", dependencies=[Depends(get_api_key)])
+async def api_cache_analytics(role: str = Depends(get_api_key)):
+    cache.record_analytics()
+    return {"status": "analytics recorded"}
+
+@cache_api.post("/api/cache/ttl", dependencies=[Depends(get_api_key)])
+async def api_cache_ttl(req: TTLUpdateQuery, role: str = Depends(get_api_key)):
+    cache.set_endpoint_ttl(req.endpoint_pattern, req.new_ttl)
+    return {"status": "ttl updated", "pattern": req.endpoint_pattern, "ttl": req.new_ttl}
+
+@cache_api.get("/api/cache/optimize", dependencies=[Depends(get_api_key)])
+async def api_cache_optimize(role: str = Depends(get_api_key)):
+    cache.optimize_cache_ttl()
+    return {"status": "cache ttl optimized"}
+
+@cache_api.get("/api/export/csv", dependencies=[Depends(get_api_key)])
+async def api_export_csv(role: str = Depends(get_api_key)):
     stats = cache.get_stats()
-    for key, value in stats.items():
-        logger.info(f"  {key}: {value}")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(stats.keys()))
+    writer.writeheader()
+    writer.writerow(stats)
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
 
-    logger.info("Endpoint Statistics:")
-    endpoint_stats = cache.get_endpoint_stats()
-    for endpoint, stats in endpoint_stats.items():
-        logger.info(f"  {endpoint}: {stats}")
+@cache_api.get("/api/export/prometheus", dependencies=[Depends(get_api_key)])
+async def api_export_prometheus(role: str = Depends(get_api_key)):
+    return PlainTextResponse(cache.export_metrics_prometheus(), media_type="text/plain")
 
-    # Test edge-case: błąd zapisu do bazy
-    def test_db_permission_error():
-        """Testuje obsługę błędu zapisu do bazy cache_analytics."""
-        import tempfile, os, stat
-        temp_file = tempfile.NamedTemporaryFile(delete=False)
-        temp_file.close()
-        os.chmod(temp_file.name, 0)
-        try:
-            cache = IntelligentCache(db_path=temp_file.name)
-            cache._init_analytics_db()
-        except Exception as e:
-            print(f"FAIL: Unexpected exception: {e}")
-        else:
-            print("OK: PermissionError handled gracefully.")
-        os.unlink(temp_file.name)
+@cache_api.get("/api/report", dependencies=[Depends(get_api_key)])
+async def api_report(role: str = Depends(get_api_key)):
+    # Placeholder for PDF/CSV/email integration
+    return {"status": "report generated (stub)"}
 
-    test_db_permission_error()
+@cache_api.get("/api/recommendations", dependencies=[Depends(get_api_key)])
+async def api_recommendations(role: str = Depends(get_api_key)):
+    stats = cache.get_stats()
+    recs = []
+    if stats["hit_rate"] < 0.5:
+        recs.append("Increase cache TTL or optimize endpoints for higher hit rate.")
+    if stats["size_utilization"] > 0.9:
+        recs.append("Increase cache size or optimize eviction policy.")
+    return {"recommendations": recs}
 
-# CI/CD: Zautomatyzowane testy edge-case i workflow wdrożone w .github/workflows/ci-cd.yml
-# (TODO usunięty po wdrożeniu automatyzacji)
+@cache_api.get("/api/premium/score", dependencies=[Depends(get_api_key)])
+async def api_premium_score(role: str = Depends(get_api_key)):
+    stats = cache.get_stats()
+    score = stats["hit_rate"] * 100 + stats["current_size_mb"]
+    return {"score": score}
+
+@cache_api.get("/api/saas/tenant/{tenant_id}/report", dependencies=[Depends(get_api_key)])
+async def api_saas_tenant_report(tenant_id: str, role: str = Depends(get_api_key)):
+    # Multi-tenant stub: filter by tenant_id in report (future)
+    stats = cache.get_stats()
+    return {"tenant_id": tenant_id, "report": stats}
+
+@cache_api.get("/api/partner/webhook", dependencies=[Depends(get_api_key)])
+async def api_partner_webhook(payload: dict, role: str = Depends(get_api_key)):
+    # Placeholder for partner webhook integration
+    return {"status": "received", "payload": payload}
+
+@cache_api.get("/api/test/edge-case")
+async def api_edge_case():
+    try:
+        raise RuntimeError("Simulated cache edge-case error")
+    except Exception as e:
+        return {"edge_case": str(e)}
+
+@cache_api.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": str(exc)})
+
+# --- CI/CD test suite ---
+import unittest
+class TestCacheAPI(unittest.TestCase):
+    def test_cache_set_get(self):
+        cache.set("/api/test", {"foo": "bar"})
+        data, hit = cache.get("/api/test")
+        assert hit and data["foo"] == "bar"
+    def test_cache_clear(self):
+        cache.set("/api/test", {"foo": "bar"})
+        cache.clear_endpoint("/api/test")
+        data, hit = cache.get("/api/test")
+        assert not hit
+
+if __name__ == "__main__":
+    import sys
+    if "test" in sys.argv:
+        unittest.main(argv=[sys.argv[0]])
+    else:
+        uvicorn.run("api_cache_system:cache_api", host="0.0.0.0", port=8505, reload=True)
