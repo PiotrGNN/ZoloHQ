@@ -1,14 +1,15 @@
 import pytest
-pytest.skip("Test pominięty: Binance nie jest używany w tym projekcie (tylko Bybit)", allow_module_level=True)
-
 import os
 from binance_connector import BinanceConnector
 import httpx
 import tempfile
+import asyncio
+
+BINANCE_API_URL = os.getenv("BINANCE_API_URL", "http://localhost:8510")
+API_KEY = os.getenv("BINANCE_API_KEY", "test")
 
 @pytest.fixture
 def connector():
-    # Use dummy keys for testnet
     return BinanceConnector(api_key="test", api_secret="test", testnet=True)
 
 def test_fetch_ohlcv_invalid_symbol(connector):
@@ -26,7 +27,6 @@ def test_place_order_invalid_params(connector):
 @pytest.mark.asyncio
 def test_fetch_ohlcv_async_invalid_symbol():
     c = BinanceConnector(api_key="test", api_secret="test", testnet=True)
-    import asyncio
     with pytest.raises(Exception):
         asyncio.run(c.fetch_ohlcv_async("INVALIDPAIR"))
 
@@ -37,7 +37,6 @@ def test_init_with_invalid_keys(monkeypatch):
     assert c.client is not None
 
 def test_db_permission_error():
-    # Simulate file permission error for fallback DB
     import tempfile, os, stat
     temp_file = tempfile.NamedTemporaryFile(delete=False)
     temp_file.close()
@@ -49,3 +48,66 @@ def test_db_permission_error():
     finally:
         os.chmod(temp_file.name, stat.S_IWRITE)
         os.unlink(temp_file.name)
+
+@pytest.mark.asyncio
+def test_api_ohlcv():
+    async def inner():
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(f"{BINANCE_API_URL}/api/ohlcv", json={"symbol": "BTCUSDT", "interval": "1h", "limit": 10}, headers={"X-API-KEY": API_KEY})
+                assert resp.status_code == 200
+                data = resp.json()
+                assert isinstance(data, list)
+        except (httpx.ConnectError, httpx.RequestError, httpx.TimeoutException) as e:
+            pytest.skip(f"Binance API not running or connection error: {e}")
+    asyncio.run(inner())
+
+@pytest.mark.asyncio
+async def test_api_recommendations():
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{BINANCE_API_URL}/api/recommendations", headers={"X-API-KEY": API_KEY})
+            assert resp.status_code == 200
+            assert "recommendations" in resp.json()
+    except (httpx.ConnectError, httpx.RequestError, httpx.TimeoutException) as e:
+        pytest.skip(f"Binance API not running or connection error: {e}")
+
+@pytest.mark.asyncio
+async def test_api_analytics():
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{BINANCE_API_URL}/api/analytics", headers={"X-API-KEY": API_KEY})
+            assert resp.status_code == 200
+            assert "anomaly_score" in resp.json()
+    except (httpx.ConnectError, httpx.RequestError, httpx.TimeoutException) as e:
+        pytest.skip(f"Binance API not running or connection error: {e}")
+
+@pytest.mark.asyncio
+async def test_api_audit_trail():
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{BINANCE_API_URL}/api/audit/trail", headers={"X-API-KEY": API_KEY})
+            assert resp.status_code == 200
+            assert "audit_trail" in resp.json()
+    except (httpx.ConnectError, httpx.RequestError, httpx.TimeoutException) as e:
+        pytest.skip(f"Binance API not running or connection error: {e}")
+
+@pytest.mark.asyncio
+async def test_api_compliance_status():
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{BINANCE_API_URL}/api/compliance/status", headers={"X-API-KEY": API_KEY})
+            assert resp.status_code == 200
+            assert "compliance" in resp.json()
+    except (httpx.ConnectError, httpx.RequestError, httpx.TimeoutException) as e:
+        pytest.skip(f"Binance API not running or connection error: {e}")
+
+@pytest.mark.asyncio
+async def test_api_edge_case():
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{BINANCE_API_URL}/api/test/edge-case")
+            assert resp.status_code == 200
+            assert "edge_case" in resp.json()
+    except (httpx.ConnectError, httpx.RequestError, httpx.TimeoutException) as e:
+        pytest.skip(f"Binance API not running or connection error: {e}")

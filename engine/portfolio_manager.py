@@ -3,15 +3,16 @@ PortfolioManager module for portfolio analytics and management.
 """
 
 import pandas as pd
+import logging
 
 
 class PortfolioManager:
     """
     PortfolioManager handles portfolio state, analytics, and advanced position sizing.
-    Provides risk management, analytics, and ML-based portfolio selection.
+    Provides risk management, analytics, ML-based portfolio selection, premium analytics, and monetization hooks.
     """
 
-    def __init__(self, initial_cash=100000):
+    def __init__(self, initial_cash=100000, premium_features=False):
         """
         Initialize PortfolioManager.
         Args:
@@ -20,6 +21,8 @@ class PortfolioManager:
         self.cash = initial_cash
         self.positions = {}
         self.history = []
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.premium_features = premium_features
 
     def update(self, symbol, action, qty, price):
         """
@@ -46,8 +49,10 @@ class PortfolioManager:
                     "cash": self.cash,
                 }
             )
+            if self.premium_features:
+                self.logger.info(f"[PREMIUM] Portfolio update: {action} {qty} {symbol} @ {price}")
         except Exception as e:
-            print(f"Error updating portfolio: {e}")
+            self.logger.error(f"Error updating portfolio: {e}")
             raise
 
     def get_portfolio_value(self, prices: dict):
@@ -124,9 +129,12 @@ class PortfolioManager:
                 .sum()
                 .max(),
             }
+            if self.premium_features:
+                self.logger.info("[PREMIUM] Advanced analytics calculated.")
+                analytics["premium"] = True
             return analytics
         except Exception as e:
-            print(f"Error in analytics calculation: {e}")
+            self.logger.error(f"Error in analytics calculation: {e}")
             return {}
 
     def dynamic_position_sizing(
@@ -271,7 +279,6 @@ class PortfolioManager:
 
 
 # CI/CD: Zautomatyzowane testy edge-case i workflow wdrożone w .github/workflows/ci-cd.yml
-# (TODO usunięty po wdrożeniu automatyzacji)
 
 # Edge-case test examples (to be expanded in test suite)
 def _test_edge_cases():

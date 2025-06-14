@@ -700,8 +700,6 @@ class ProductionDataManager:
             },
         }
 
-    # ...existing code...
-
     def _get_fallback_balance(self) -> Dict[str, Any]:
         """Fallback account balance data"""
         return {
@@ -893,3 +891,152 @@ production_data_manager = ProductionDataManager()
 def get_production_data() -> ProductionDataManager:
     """Get the global production data manager instance"""
     return production_data_manager
+
+import sys
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi.security.api_key import APIKeyHeader
+from pydantic import BaseModel, Field
+from starlette_exporter import PrometheusMiddleware, handle_metrics
+import io
+import csv
+import uvicorn
+
+API_KEYS = {"admin-key": "admin", "proddata-key": "proddata", "partner-key": "partner", "premium-key": "premium"}
+API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=False)
+
+def get_api_key(api_key: str = Depends(API_KEY_HEADER)):
+    if api_key not in API_KEYS:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return API_KEYS[api_key]
+
+prod_api = FastAPI(title="ZoL0 Production Data Manager API", version="2.0")
+prod_api.add_middleware(PrometheusMiddleware)
+prod_api.add_route("/metrics", handle_metrics)
+
+# --- Pydantic Models ---
+class SymbolQuery(BaseModel):
+    symbol: str = "BTCUSDT"
+class BatchSymbolQuery(BaseModel):
+    queries: list[SymbolQuery]
+
+# --- Endpoints ---
+@prod_api.get("/")
+async def root():
+    return {"status": "ok", "service": "ZoL0 Production Data Manager API", "version": "2.0"}
+
+@prod_api.get("/api/health")
+async def api_health():
+    return {"status": "ok", "timestamp": datetime.now().isoformat(), "service": "ZoL0 Production Data Manager API", "version": "2.0"}
+
+@prod_api.get("/api/balance", dependencies=[Depends(get_api_key)])
+async def api_balance(role: str = Depends(get_api_key)):
+    return production_data_manager.get_account_balance()
+
+@prod_api.get("/api/portfolio", dependencies=[Depends(get_api_key)])
+async def api_portfolio(role: str = Depends(get_api_key)):
+    return production_data_manager.get_portfolio_data()
+
+@prod_api.get("/api/market", dependencies=[Depends(get_api_key)])
+async def api_market(symbol: str = "BTCUSDT", role: str = Depends(get_api_key)):
+    return production_data_manager.get_market_data(symbol)
+
+@prod_api.get("/api/positions", dependencies=[Depends(get_api_key)])
+async def api_positions(role: str = Depends(get_api_key)):
+    return production_data_manager.get_positions()
+
+@prod_api.get("/api/stats", dependencies=[Depends(get_api_key)])
+async def api_stats(role: str = Depends(get_api_key)):
+    return production_data_manager.get_trading_stats()
+
+@prod_api.get("/api/status", dependencies=[Depends(get_api_key)])
+async def api_status(role: str = Depends(get_api_key)):
+    return production_data_manager.get_status()
+
+@prod_api.post("/api/market/batch", dependencies=[Depends(get_api_key)])
+async def api_market_batch(req: BatchSymbolQuery, role: str = Depends(get_api_key)):
+    return {"results": [production_data_manager.get_market_data(q.symbol) for q in req.queries]}
+
+@prod_api.get("/api/export/csv", dependencies=[Depends(get_api_key)])
+async def api_export_csv(role: str = Depends(get_api_key)):
+    data = production_data_manager.get_portfolio_data()
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(data.keys()))
+    writer.writeheader()
+    writer.writerow(data)
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+
+@prod_api.get("/api/export/prometheus", dependencies=[Depends(get_api_key)])
+async def api_export_prometheus(role: str = Depends(get_api_key)):
+    data = production_data_manager.get_portfolio_data()
+    return PlainTextResponse(f"# HELP proddata_total_value Portfolio total value\nproddata_total_value {data.get('total_value', 0)}", media_type="text/plain")
+
+@prod_api.get("/api/report", dependencies=[Depends(get_api_key)])
+async def api_report(role: str = Depends(get_api_key)):
+    return {"status": "report generated (stub)"}
+
+@prod_api.get("/api/recommendations", dependencies=[Depends(get_api_key)])
+async def api_recommendations(role: str = Depends(get_api_key)):
+    data = production_data_manager.get_portfolio_data()
+    recs = []
+    if data.get("total_value", 0) < 10000:
+        recs.append("Increase capital or optimize trading strategies.")
+    if data.get("available_balance", 0) < 1000:
+        recs.append("Reduce risk or add funds.")
+    return {"recommendations": recs}
+
+@prod_api.get("/api/premium/score", dependencies=[Depends(get_api_key)])
+async def api_premium_score(role: str = Depends(get_api_key)):
+    data = production_data_manager.get_portfolio_data()
+    score = data.get("total_value", 0) * 0.01
+    return {"score": score}
+
+@prod_api.get("/api/saas/tenant/{tenant_id}/report", dependencies=[Depends(get_api_key)])
+async def api_saas_tenant_report(tenant_id: str, role: str = Depends(get_api_key)):
+    data = production_data_manager.get_portfolio_data()
+    return {"tenant_id": tenant_id, "report": data}
+
+@prod_api.get("/api/usage", dependencies=[Depends(get_api_key)])
+async def api_usage(role: str = Depends(get_api_key)):
+    # Monetization: usage metering for billing/SaaS
+    stats = production_data_manager.get_trading_stats()
+    balance = production_data_manager.get_account_balance()
+    return {
+        "role": role,
+        "api_calls": stats.get("api_calls", 0),
+        "balance": balance.get("total_balance", 0),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+@prod_api.post("/api/partner/webhook", dependencies=[Depends(get_api_key)])
+async def api_partner_webhook(payload: dict, role: str = Depends(get_api_key)):
+    # Monetization: process partner webhook payload for SaaS/affiliate integrations
+    # In production, validate/process payload, trigger partner actions
+    return {"status": "received", "payload": payload}
+
+@prod_api.get("/api/test/edge-case")
+async def api_edge_case():
+    try:
+        raise RuntimeError("Simulated production data manager edge-case error")
+    except Exception as e:
+        return {"edge_case": str(e)}
+
+@prod_api.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": str(exc)})
+
+# --- CI/CD test suite ---
+import unittest
+class TestProductionDataManagerAPI(unittest.TestCase):
+    def test_balance(self):
+        result = production_data_manager.get_account_balance()
+        assert "balances" in result
+    def test_portfolio(self):
+        result = production_data_manager.get_portfolio_data()
+        assert "total_value" in result
+
+if __name__ == "__main__":
+    if "test" in sys.argv:
+        unittest.main(argv=[sys.argv[0]])
+    else:
+        uvicorn.run("production_data_manager_clean:prod_api", host="0.0.0.0", port=8507, reload=True)

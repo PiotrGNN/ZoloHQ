@@ -67,10 +67,11 @@ def test_bybit_connector():
         api_key = os.getenv("BYBIT_API_KEY")
         api_secret = os.getenv("BYBIT_API_SECRET")
         use_testnet = os.getenv("BYBIT_TESTNET", "false").lower() == "true"
-
+        if "BYBIT_TESTNET" not in os.environ:
+            print("⚠️  BYBIT_TESTNET not set in environment. Defaulting to production (testnet=False).")
         print(f"📡 Initializing connector (testnet: {use_testnet})...")
         connector = BybitConnector(
-            api_key=api_key, api_secret=api_secret, use_testnet=use_testnet
+            api_key=api_key, api_secret=api_secret, testnet=use_testnet
         )
 
         # Test server time (public endpoint)

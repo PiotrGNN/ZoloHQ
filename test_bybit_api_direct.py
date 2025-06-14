@@ -9,12 +9,17 @@ import time
 
 import requests
 from dotenv import load_dotenv
+load_dotenv()
+import pytest
 
 # Load environment variables
 load_dotenv()
 
 
 def test_bybit_api_direct():
+    if not os.getenv("BYBIT_API_KEY") or not os.getenv("BYBIT_API_SECRET"):
+        pytest.skip("BYBIT_API_KEY or BYBIT_API_SECRET not set in environment.")
+
     """Test direct Bybit API calls without any wrappers"""
     print("🔍 DIRECT BYBIT API TEST")
     print("=" * 50)

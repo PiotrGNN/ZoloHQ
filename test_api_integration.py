@@ -4,17 +4,14 @@ Covers: authentication, server time, ticker, wallet, architecture, error handlin
 """
 import os
 from unittest.mock import MagicMock, patch
-
 import pytest
+import warnings
+import requests
 
 try:
     from data.execution.bybit_connector import BybitConnector
 except ImportError:
     from bybit_connector import BybitConnector
-import warnings
-
-import requests
-
 
 def warn_filter_for_test(func):
     import functools
@@ -139,7 +136,7 @@ def test_local_api_health():
         r = requests.get("http://localhost:5001/health", timeout=3)
         assert r.status_code == 200
         assert "ok" in r.text.lower() or "healthy" in r.text.lower()
-    except Exception as e:
+    except (requests.ConnectionError, requests.Timeout) as e:
         pytest.skip(f"Local API not running: {e}")
 
 @warn_filter_for_test
@@ -157,5 +154,5 @@ def test_backtest_api():
         data = r.json()
         assert "final_capital" in data
         assert "total_return" in data
-    except Exception as e:
+    except (requests.ConnectionError, requests.Timeout) as e:
         pytest.skip(f"Backtest API not running: {e}")
